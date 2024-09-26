@@ -11,7 +11,11 @@ const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
 
-const indexHtmlContent = readFileSync('./index.html', 'utf-8');
+let preloadedIndexHtmlContent;
+if (process.env.NODE_ENV === 'production') {
+  console.log('preloading html template...');
+  preloadedIndexHtmlContent = readFileSync('./index.html', 'utf-8');
+}
 
 const jetstream = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
 
@@ -56,10 +60,8 @@ function handleRequest(req, res) {
     return res.end('not found');
   }
 
-  let indexHtmlContent = indexHtmlContent;
-  if (process.env.NODE_ENV !== 'production') {
-    indexHtmlContent = readFileSync('./index.html', 'utf-8');
-  }
+  // always reload in dev
+  let indexHtmlContent = preloadedIndexHtmlContent ?? readFileSync('./index.html', 'utf-8');
 
   const knownLangs = langTracker.getActive();
 
