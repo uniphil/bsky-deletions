@@ -41,13 +41,25 @@ const server = createServer(handleRequest);
 const wss = new WebSocketServer({ noServer: true });
 
 function handleRequest(req, res) {
-  if (req.url !== '/' || req.method !== 'GET') {
+  if (req.method !== 'GET') {
+    res.writeHead(405);
+    return res.end('method not allowed');
+  }
+  if (req.url === '/stats') {
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('cache-control', 'public, max-age=300');
+    res.writeHead(200);
+    return res.end(JSON.stringify(statCache));
+  }
+  if (req.url !== '/') {
     res.writeHead(404);
-    return res.end('not found ' + req.method);
+    return res.end('not found');
   }
 
-  // remove in prod
-  const indexHtmlContent = readFileSync('./index.html', 'utf-8');
+  let indexHtmlContent = indexHtmlContent;
+  if (process.env.NODE_ENV !== 'production') {
+    indexHtmlContent = readFileSync('./index.html', 'utf-8');
+  }
 
   const knownLangs = langTracker.getActive();
 
@@ -97,7 +109,6 @@ wss.on('connection', (ws, req) => {
 });
 
 function handleDeletedPost(found) {
-  // console.log(found.value);
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       if ((client.langs?.length ?? 0) > 0) {
@@ -112,18 +123,32 @@ function handleDeletedPost(found) {
   });
 }
 
+
+const STAT_CACHE_SIZE = 14400; // 24h at every 6s
+let statCache = [];
+const getStats = () => {
+  const now = Math.round(new Date() / 1000);
+  const currentStats = {
+    cached: postCache.size(),
+    hit_rate: deletedPostHit / (deletedPostHit + deletedPostMiss),
+    langs: langTracker._getStats(),
+    clients: wss.clients.size,
+  };
+  if (statCache.length >= STAT_CACHE_SIZE) {
+    statCache.unshift();
+  }
+  statCache.push({...currentStats, t: now});
+  return currentStats;
+}
+
 setInterval(() => {
-  console.log(
-    'cache size:', postCache.size(),
-    'hit rate:', (deletedPostHit / (deletedPostHit + deletedPostMiss)).toFixed(3),
-    'languages:', langTracker.getActive(),
-    'connected clients:', wss.clients.size,
-  );
+  const stats = {...getStats(), langs: langTracker.getActive()};
+  console.log(JSON.stringify(stats));
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({
         'type': 'observers',
-        'observers': wss.clients.size,
+        'observers': stats.clients,
       }));
     }
   });

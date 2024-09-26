@@ -17,6 +17,9 @@ class LangTracker {
       .sort(([_ka, a], [_kb, b]) => b - a)
       .map(([k, _]) => k);
   }
+  _getStats() {
+    return Object.fromEntries(this.#map);
+  }
 }
 
 export default LangTracker;
