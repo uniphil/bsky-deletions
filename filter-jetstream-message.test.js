@@ -18,7 +18,7 @@ test('the filter should map creation to posts', () => {
         ],
         "text": "In a world of naps be a medically-induced coma ✨"
       },
-      "cid": "bafyreibrtw4oqcwb37qeq4huidimdj3baev7x3kg2yqul7s2n5ep6ze3vq"
+      "cid": "asdfasdfasdfasdfasdfasdf"
     }
   })).toStrictEqual({
     type: 'post',
@@ -26,6 +26,7 @@ test('the filter should map creation to posts', () => {
     rkey: '3l4yYYYYYYYY',
     langs: ['en'],
     text: 'In a world of naps be a medically-induced coma ✨',
+    target: null,
   });
 });
 
@@ -47,7 +48,7 @@ test('the filter should normalize langs', () => {
         ],
         "text": "In a world of naps be a medically-induced coma ✨"
       },
-      "cid": "bafyreibrtw4oqcwb37qeq4huidimdj3baev7x3kg2yqul7s2n5ep6ze3vq"
+      "cid": "asdfasdfasdfasdfasdfasdf"
     }
   })).toStrictEqual({
     type: 'post',
@@ -55,5 +56,48 @@ test('the filter should normalize langs', () => {
     rkey: '3l4yYYYYYYYY',
     langs: ['en'],
     text: 'In a world of naps be a medically-induced coma ✨',
+    target: null,
+  });
+});
+
+
+
+test('the filter should identify replies', () => {
+  expect(filter({
+    "did": "did:plc:xxxxxxxxx",
+    "time_us": 1711111116933838,
+    "type": "com",
+    "commit": {
+      "rev": "3l4yXXXXXXXXX",
+      "type": "c",
+      "collection": "app.bsky.feed.post",
+      "rkey": "3l4yYYYYYYYY",
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "langs": [
+          "en"
+        ],
+        "reply": {
+          "parent": {
+            "cid": "asdfasdfasdfasdf",
+            "uri": "at://did:plc:u6mavbfl2p54ycmipyeihdb3/app.bsky.feed.post/3l4yZZZZZZZZZ"
+          },
+          "root": {
+            "cid": "asdfasdfasdfasdf",
+            "uri": "at://did:plc:u6mavbfl2p54ycmipyeihdb3/app.bsky.feed.post/3l4yZZZZZZZZZ"
+          }
+        },
+        "text": "more is coming."
+      },
+      "cid": "asdfasdfasdfasdfasdfasdfasdf"
+    }
+  })).toStrictEqual({
+    type: 'post',
+    t: 1711111116933,
+    rkey: '3l4yYYYYYYYY',
+    langs: ['en'],
+    text: 'more is coming.',
+    target: 'reply',
   });
 });

@@ -6,7 +6,7 @@ import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
 
-const postCache = new PostCache();
+const postCache = new PostCache(1500000);
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
@@ -19,12 +19,12 @@ jetstream.onmessage = m => {
   const contents = JSON.parse(m.data);
   const message = filterJetstreamMessage(contents);
   if (message === undefined) return;
-  const { type, t, rkey, langs, text } = message;
+  const { type, t, rkey, langs, text, target } = message;
   if (type === 'post') {
-    postCache.set(t, rkey, { text, langs });
+    postCache.set(t, rkey, { text, langs, target });
     langs?.forEach(l => langTracker.addSighting(l));
   } else if (type === 'update') {
-    postCache.update(t, rkey, { text, langs });
+    postCache.update(t, rkey, { text, langs, target });
     langs?.forEach(l => langTracker.addSighting(l));
   } else if (type === 'delete') {
     const found = postCache.take(t, rkey);
@@ -64,6 +64,7 @@ function handleRequest(req, res) {
     .replaceAll('[[KNOWN_LANGS]]', JSON.stringify(knownLangs));
 
   res.setHeader('content-type', 'text/html');
+  res.setHeader('cache-control', 'public, max-age=300');
   res.writeHead(200);
   res.end(userContent);
 };
@@ -96,14 +97,17 @@ wss.on('connection', (ws, req) => {
 });
 
 function handleDeletedPost(found) {
-  console.log(found.value);
+  // console.log(found.value);
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       if ((client.langs?.length ?? 0) > 0) {
         if ((found.value.langs?.length ?? 0) === 0) return;
         if (!found.value.langs.some(l => client.langs.includes(l))) return;
       }
-      client.send(JSON.stringify(found));
+      client.send(JSON.stringify({
+        'type': 'post',
+        'post': found,
+      }));
     }
   });
 }
@@ -113,9 +117,17 @@ setInterval(() => {
     'cache size:', postCache.size(),
     'hit rate:', (deletedPostHit / (deletedPostHit + deletedPostMiss)).toFixed(3),
     'languages:', langTracker.getActive(),
-    'connected clients:', wss.clients.length,
+    'connected clients:', wss.clients.size,
   );
-}, 15000);
+  wss.clients.forEach(function each(client) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        'type': 'observers',
+        'observers': wss.clients.size,
+      }));
+    }
+  });
+}, 6000);
 
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));

@@ -9,33 +9,70 @@
 .js .no-js-ohno { display: none; }
 
 body {
-  background: #332;
+  background: #323;
+  color: #bba;
   font-family: 'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052, serif;
   font-size: 16pt;
   font-weight: normal;
   line-height: 1.4em;
-  color: #bba;
+  margin: 0;
+  padding: 0;
 }
 
 h1 {
-  display: inline;
   font-size: 1.5em;
   margin: 0.5em 0;
-}
-h1 + p {
-  display: inline;
 }
 p {
   margin: 0.5em 0;
 }
 
+.layout {
+  display: flex;
+}
+.layout .meta {
+  background: #111;
+  border-style: solid;
+  border-color: hsla(0, 0%, 100%, 0.1);
+  border-width: 0 2px 0 0;
+  box-sizing: border-box;
+  flex: 0 1 12em;
+  line-height: 1em;
+  min-height: 100vh;
+  padding: 1em;
+}
+.layout .content {
+  flex: 0 1 24em;
+  padding: 1em;
+}
+
+@media screen and (max-width: 26em) {
+  .layout {
+    flex-direction: column;
+  }
+  .layout .meta {
+    min-height: 0;
+    border-width: 0 0 2px;
+    flex-basis: auto;
+    flex-shrink: 0;
+    flex-grow: 0;
+  }
+  .layout .content {
+    flex-basis: auto;
+    flex-grow: 1;
+  }
+}
+
+.info {
+  font-size: 0.667em;
+}
+
 .posts-area {
-  margin: 3em auto;
-  max-width: 24em;
+  margin: 1em auto;
 }
 
 .post {
-  background: #221;
+  background: hsla(0, 0%, 0%, 0.4);
   border-radius: 0.5em;
   box-sizing: border-box;
   font-style: italic;
@@ -46,6 +83,7 @@ p {
 }
 
 .post:not(.waiting) {
+  border: 2px solid hsla(0, 0%, 100%, 0.1);
   animation:
     0.5s ease-in arrive,
     5s ease-out 3s fade,
@@ -89,16 +127,25 @@ p {
   </head>
 
   <body>
-    <h1>Deleted posts sendoff</h1>
-    <form id="lang-selector">
-      language filter: 
-    </form>
+    <div class="layout">
+      <div class="meta">
+        <h1>Final words</h1>
+        <p class="info">Last glimpses of deleted bluesky posts as they happen.</p>
+        <p class="info">Observers: <span id="info-observers"><em>waiting&hellip;</em></span></p>
+        <details>
+          <summary>Filter language</summary>
+          <form id="lang-selector"></form>
+        </details>
+      </div>
 
-    <p class="no-js-ohno">Unfortunately, JavaScript is required to glimpse deleted posts as they go.</p>
+      <div class="content">
+        <p class="no-js-ohno">Unfortunately, JavaScript is required to glimpse deleted posts as they go.</p>
 
-    <div class="posts-area">
-      <div class="post waiting">
-        <p>Waiting for someone to delete a post&hellip;</p>
+        <div class="posts-area">
+          <div class="post waiting">
+            <p>Listening for deletions&hellip;</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -115,14 +162,24 @@ ws.onopen = () => console.log('open');
 ws.onerror = e => console.error('e', e);
 ws.onmessage = ({ data }) => {
   const content = JSON.parse(data);
-  console.log('message', content);
-  createPost(content.value.text);
+  const { type } = content;
+  if (type === 'post') {
+    console.log('message', content);
+    createPost(content.post);
+  } else if (type == 'observers') {
+    console.log('update observers', content.observers);
+    updateObservers(content.observers);
+  } else {
+    console.info('other message', content);
+  }
 };
 
 const postsAreaEl = document.querySelector('.posts-area');
+const waitingEl = document.querySelector('.post.waiting');
+const langSelectorForm = document.querySelector('#lang-selector');
+const observersInfoEl = document.querySelector('#info-observers');
 
 let waitingTimer;
-const waitingEl = document.querySelector('.post.waiting');
 waitingEl.style.setProperty('--h', `-${waitingEl.getBoundingClientRect().height}px`);
 waitingEl.remove(); // initially hide
 waitingEl.addEventListener('animationend', event => {
@@ -130,7 +187,9 @@ waitingEl.addEventListener('animationend', event => {
 });
 waitingTimer = setTimeout(showWaiting, SHOW_WAITING_AFTER_MS);
 
-const createPost = text => {
+const createPost = post => {
+  const { text } = post.value;
+
   const postEl = document.createElement('div');
   postEl.classList.add('post');
   text.split('\n').forEach(p => {
@@ -164,7 +223,6 @@ function showWaiting() {
 }
 
 /// lang selector
-const langSelectorForm = document.querySelector('#lang-selector');
 [[KNOWN_LANGS]].forEach(lang => {
   const langEl = document.createElement('label');
   langSelectorForm.appendChild(langEl);
@@ -184,6 +242,22 @@ function changeLanguageSelection() {
     type: 'setLangs',
     langs: newLangs,
   }));
+}
+
+function updateObservers(observers) {
+  if (observers <= 1) {
+    observersInfoEl.textContent = 'just you.';
+  } else if (observers == 2) {
+    observersInfoEl.textContent = 'you and one other.';
+  } else if (observers == 3) {
+    observersInfoEl.textContent = 'you and two others.';
+  } else if (observers == 4) {
+    observersInfoEl.textContent = 'you and three others.';
+  } else if (observers == 5) {
+    observersInfoEl.textContent = 'you and four others.';
+  } else {
+    observersInfoEl.textContent = `you and ${observers-1} others.`;
+  }
 }
 
     </script>

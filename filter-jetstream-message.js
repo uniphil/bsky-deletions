@@ -4,7 +4,7 @@ const filter = contents => {
   const t = Math.floor(contents.time_us / 1000);
   const { type: commitType, rkey, record } = contents.commit;
   if (['c', 'u'].includes(commitType)) {
-    const { text, langs } = record;
+    const { text, langs, reply } = record;
     let type;
     if (commitType === 'c') {
       if (text === '') return;
@@ -14,7 +14,8 @@ const filter = contents => {
       type = 'update';
     }
     const normLangs = langs?.map(lang => lang.split('-')[0]);
-    return { type, t, rkey, langs: normLangs, text };
+    const target = reply === undefined ? null : 'reply';
+    return { type, t, rkey, langs: normLangs, text, target };
   } else if (commitType === 'd') {
     return { type: 'delete', t, rkey };
   }
