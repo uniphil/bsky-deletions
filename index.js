@@ -47,7 +47,7 @@ function handleRequest(req, res) {
   }
   if (req.url === '/stats') {
     res.setHeader('content-type', 'application/json');
-    res.setHeader('cache-control', 'public, max-age=300');
+    res.setHeader('cache-control', 'public, max-age=300, immutable');
     res.writeHead(200);
     return res.end(JSON.stringify(statCache));
   }
@@ -76,7 +76,8 @@ function handleRequest(req, res) {
     .replaceAll('[[KNOWN_LANGS]]', JSON.stringify(knownLangs));
 
   res.setHeader('content-type', 'text/html');
-  res.setHeader('cache-control', 'public, max-age=300');
+  res.setHeader('cache-control', 'public, max-age=300, immutable');
+  res.setHeader('vary', 'accept-language');
   res.writeHead(200);
   res.end(userContent);
 };
