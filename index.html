@@ -79,13 +79,25 @@ p {
 
 .post {
   background: hsla(0, 0%, 0%, 0.4);
-  border-radius: 0.5em;
+  border-radius: 0.5rem;
   box-sizing: border-box;
   font-style: italic;
   margin: 1em 0;
   overflow-wrap: break-word;
-  padding: 0.5em 0.8em 0.4em;
+  padding: 0.5em 0.8em 0;
+  position: relative;
   text-align: center;
+}
+
+.post .post-info {
+  color: #666;
+  font-size: 0.667em;
+  font-family: sans-serif;
+  font-style: normal;
+  line-height: 1;
+  margin: 0 -0.8rem 0 0;
+  padding: 0 0.2em 0.2em;
+  text-align: right;
 }
 
 .post:not(.waiting) {
@@ -136,8 +148,7 @@ p {
     <div class="layout">
       <div class="meta">
         <h1>Final words</h1>
-        <p class="info">Last glimpses of deleting bluesky posts.</p>
-        <p class="info">Observing: <span id="info-observers"><em>waiting&hellip;</em></span></p>
+        <p class="info">Glimpses of deleting bluesky posts. Observing: <span id="info-observers"><em>waiting&hellip;</em></span></p>
         <details>
           <summary>Filter language</summary>
           <form id="lang-selector"></form>
@@ -193,16 +204,37 @@ waitingEl.addEventListener('animationend', event => {
 });
 waitingTimer = setTimeout(showWaiting, SHOW_WAITING_AFTER_MS);
 
+const getNiceAge = ms => {
+  const secs = Math.round(ms / 1000);
+  if (secs < 45) {
+    return `${secs} sec`;
+  }
+  const mins = Math.round(secs / 60);
+  if (mins < 45) {
+    return `${mins} min`;
+  }
+  const hrs = Math.round(mins / 60);
+  return `${hrs} hr`;
+}
+
 const createPost = post => {
-  const { text } = post.value;
+  const { text, target } = post.value;
 
   const postEl = document.createElement('div');
   postEl.classList.add('post');
+
   text.split('\n').forEach(p => {
     const postP = document.createElement('p');
     postP.textContent = p;
     postEl.appendChild(postP);
   });
+
+  let postTypeName = 'post';
+  if (target === 'reply') postTypeName = 'reply';
+  const postInfoEl = document.createElement('div');
+  postInfoEl.classList.add('post-info');
+  postInfoEl.textContent = `${postTypeName}, age ${getNiceAge(post.age)}`;
+  postEl.appendChild(postInfoEl);
 
   postEl.addEventListener('animationend', event => {
     if (event.animationName === 'arrive') {
