@@ -27,9 +27,13 @@ h1 {
 p {
   margin: 0.5em 0;
 }
+a {
+  color: inherit;
+}
 
 .layout {
   display: flex;
+  min-height: 100vh;
 }
 .layout .meta {
   background: #111;
@@ -39,12 +43,20 @@ p {
   box-sizing: border-box;
   flex: 0 1 12em;
   line-height: 1em;
-  min-height: 100vh;
   padding: 1em;
 }
 .layout .content {
   flex: 0 1 24em;
-  padding: 1em;
+  padding: 1em 1em 4em;
+  position: relative;
+}
+.layout .content .thanks {
+  bottom: 0;
+  font-family: sans-serif;
+  font-size: 0.667em;
+  margin: 0 auto;
+  opacity: 0.5;
+  position: absolute;
 }
 
 @media screen and (max-width: 26em) {
@@ -174,6 +186,13 @@ p {
           <div class="post waiting">
             <p>Listening for deletions&hellip;</p>
           </div>
+        </div>
+
+        <div class="thanks">
+          <details>
+            <summary>thanks</summary>
+            <p>data from bluesky's public <a href="https://github.com/bluesky-social/jetstream">jetstream instance</a></p>
+          </details>
         </div>
       </div>
     </div>
