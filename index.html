@@ -89,8 +89,10 @@ p {
   </head>
 
   <body>
-    <h1>Deletion.</h1>
-    <p>Posts as they are deleted. Your browser languages: [[BROWSER_LANGS]]</p>
+    <h1>Deleted posts sendoff</h1>
+    <form id="lang-selector">
+      language filter: 
+    </form>
 
     <p class="no-js-ohno">Unfortunately, JavaScript is required to glimpse deleted posts as they go.</p>
 
@@ -159,6 +161,29 @@ function showWaiting() {
   if (postsAreaEl.children.length > 0) return;
   waitingEl.classList.remove('leaving');
   postsAreaEl.appendChild(waitingEl);
+}
+
+/// lang selector
+const langSelectorForm = document.querySelector('#lang-selector');
+[[KNOWN_LANGS]].forEach(lang => {
+  const langEl = document.createElement('label');
+  langSelectorForm.appendChild(langEl);
+  const langBox = document.createElement('input');
+  langBox.type = 'checkbox';
+  if ([[BROWSER_LANGS]].includes(lang)) langBox.checked = true;
+  langBox.name = lang;
+  langBox.addEventListener('input', changeLanguageSelection);
+  langEl.appendChild(langBox);
+  langEl.appendChild(document.createTextNode(lang));
+  langSelectorForm.appendChild(document.createTextNode(' '));
+});
+
+function changeLanguageSelection() {
+  const newLangs = Array.from(new FormData(langSelectorForm).keys());
+  ws.send(JSON.stringify({
+    type: 'setLangs',
+    langs: newLangs,
+  }));
 }
 
     </script>

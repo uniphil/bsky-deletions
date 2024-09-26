@@ -8,6 +8,8 @@ import filterJetstreamMessage from './filter-jetstream-message.js';
 
 const postCache = new PostCache();
 const langTracker = new LangTracker();
+let deletedPostHit = 0;
+let deletedPostMiss = 0;
 
 const indexHtmlContent = readFileSync('./index.html', 'utf-8');
 
@@ -28,6 +30,9 @@ jetstream.onmessage = m => {
     const found = postCache.take(t, rkey);
     if (found !== undefined) {
       handleDeletedPost(found);
+      deletedPostHit += 1;
+    } else {
+      deletedPostMiss += 1;
     }
   }
 };
@@ -76,6 +81,18 @@ server.on('clientError', (err, socket) => {
 
 wss.on('connection', (ws, req) => {
   ws.langs = new URL(`https://host${req.url}`).searchParams.getAll('lang');
+  ws.on('message', data => {
+    let message;
+    try {
+      message = JSON.parse(data);
+    } catch (e) {
+      console.warn(`bad client message ${data}`);
+      return;
+    }
+    if (message.type === 'setLangs') {
+      ws.langs = message.langs;
+    }
+  });
 });
 
 function handleDeletedPost(found) {
@@ -94,6 +111,7 @@ function handleDeletedPost(found) {
 setInterval(() => {
   console.log(
     'cache size:', postCache.size(),
+    'hit rate:', (deletedPostHit / (deletedPostHit + deletedPostMiss)).toFixed(3),
     'languages:', langTracker.getActive(),
     'connected clients:', wss.clients.length,
   );
