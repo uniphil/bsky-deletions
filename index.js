@@ -117,5 +117,5 @@ setInterval(() => {
   );
 }, 15000);
 
-const PORT = 5000;
+const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));
