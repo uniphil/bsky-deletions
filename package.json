@@ -1,0 +1,17 @@
+{
+  "name": "bsky-no-self-reposts",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest --no-watchman"
+  },
+  "author": "",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

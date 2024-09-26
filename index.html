@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deletion</title>
+    <style type="text/css">
+
+.js .no-js-ohno { display: none; }
+
+body {
+  background: #332;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', 'URW Palladio L', P052, serif;
+  font-size: 16pt;
+  font-weight: normal;
+  line-height: 1.4em;
+  color: #bba;
+}
+
+h1 {
+  display: inline;
+  font-size: 1.5em;
+  margin: 0.5em 0;
+}
+h1 + p {
+  display: inline;
+}
+p {
+  margin: 0.5em 0;
+}
+
+.posts-area {
+  margin: 3em auto;
+  max-width: 24em;
+}
+
+.post {
+  background: #221;
+  border-radius: 0.5em;
+  box-sizing: border-box;
+  font-style: italic;
+  margin: 1em 0;
+  overflow-wrap: break-word;
+  padding: 0.5em 0.8em 0.4em;
+  text-align: center;
+}
+
+.post:not(.waiting) {
+  animation:
+    0.5s ease-in arrive,
+    5s ease-out 3s fade,
+    3s ease-in-out 5s leave;
+}
+
+.post.waiting {
+  background: transparent;
+  animation:
+    0.5s ease-in arrive;
+}
+.post.waiting.leaving {
+  animation:
+    5s ease-out fade,
+    3s ease-in-out 2s leave;
+}
+
+@keyframes arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes leave {
+  from {
+    margin-bottom: 0;
+    scale: 100%;
+  }
+  to {
+    margin-bottom: calc(var(--h) - 1em);
+    scale: 70%;
+  }
+}
+
+    </style>
+    <script type="text/javascript">document.querySelector('html').classList.add('js')</script>
+  </head>
+
+  <body>
+    <h1>Deletion.</h1>
+    <p>Posts as they are deleted. Your browser languages: [[BROWSER_LANGS]]</p>
+
+    <p class="no-js-ohno">Unfortunately, JavaScript is required to glimpse deleted posts as they go.</p>
+
+    <div class="posts-area">
+      <div class="post waiting">
+        <p>Waiting for someone to delete a post&hellip;</p>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+const SHOW_WAITING_AFTER_MS = 1000;
+
+const PRESELECTED_LANGS = [[BROWSER_LANGS]];
+const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsParams = new URLSearchParams();
+PRESELECTED_LANGS.forEach(lang => wsParams.append('lang', lang));
+const ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
+
+ws.onopen = () => console.log('open');
+ws.onerror = e => console.error('e', e);
+ws.onmessage = ({ data }) => {
+  const content = JSON.parse(data);
+  console.log('message', content);
+  createPost(content.value.text);
+};
+
+const postsAreaEl = document.querySelector('.posts-area');
+
+let waitingTimer;
+const waitingEl = document.querySelector('.post.waiting');
+waitingEl.style.setProperty('--h', `-${waitingEl.getBoundingClientRect().height}px`);
+waitingEl.remove(); // initially hide
+waitingEl.addEventListener('animationend', event => {
+  if (event.animationName === 'leave') waitingEl.remove();
+});
+waitingTimer = setTimeout(showWaiting, SHOW_WAITING_AFTER_MS);
+
+const createPost = text => {
+  const postEl = document.createElement('div');
+  postEl.classList.add('post');
+  text.split('\n').forEach(p => {
+    const postP = document.createElement('p');
+    postP.textContent = p;
+    postEl.appendChild(postP);
+  });
+
+  postEl.addEventListener('animationend', event => {
+    if (event.animationName === 'arrive') {
+      postEl.style.setProperty('--h', `-${postEl.getBoundingClientRect().height}px`);
+    } else if (event.animationName === 'leave') {
+      if (postsAreaEl.children.length === 1) { // we are the last one
+        clearTimeout(waitingTimer);
+        waitingTimer = setTimeout(showWaiting, SHOW_WAITING_AFTER_MS);
+      }
+      postEl.remove();
+    }
+  });
+
+  postsAreaEl.appendChild(postEl);
+  if (postsAreaEl.contains(waitingEl)) {
+    waitingEl.classList.add('leaving');
+  }
+};
+
+function showWaiting() {
+  if (postsAreaEl.children.length > 0) return;
+  waitingEl.classList.remove('leaving');
+  postsAreaEl.appendChild(waitingEl);
+}
+
+    </script>
+  </body>
+</html>
