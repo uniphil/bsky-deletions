@@ -130,9 +130,11 @@ function handleDeletedPost(found) {
 const STAT_CACHE_SIZE = 14400; // 24h at every 6s
 let statCache = [];
 const getStats = () => {
-  const now = Math.round(new Date() / 1000);
+  const now_ms = +new Date();
+  const now_s = Math.round(now_ms / 1000);
   const currentStats = {
     cached: postCache.size(),
+    oldest: Math.round((now_ms - postCache.oldest()) / 1000),
     hit_rate: deletedPostHit / (deletedPostHit + deletedPostMiss),
     langs: langTracker._getStats(),
     clients: wss.clients.size,
@@ -140,7 +142,7 @@ const getStats = () => {
   if (statCache.length >= STAT_CACHE_SIZE) {
     statCache.unshift();
   }
-  statCache.push({...currentStats, t: now});
+  statCache.push({...currentStats, t: now_s});
   return currentStats;
 }
 

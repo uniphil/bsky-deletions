@@ -50,3 +50,13 @@ test('the cache reports its size', () => {
   cache.take(0, 'x');
   expect(cache.size()).toBe(0);
 });
+
+test('the cache reports oldest member', () => {
+  const cache = new PostCache(2);
+  expect(cache.oldest()).toBeUndefined();
+  cache.set(0, 'x', 'a');
+  cache.set(1, 'y', 'b');
+  expect(cache.oldest()).toBe(0);
+  cache.set(2, 'z', 'c');
+  expect(cache.oldest()).toBe(1);
+});

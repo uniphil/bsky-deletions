@@ -46,6 +46,10 @@ class PostCache {
     return this.#map.size;
   }
 
+  oldest() {
+    return this.#map.values().next().value?.t;
+  }
+
   #cleanup(now) {
     let sizeOver = this.#map.size - this.#maxItems;
     const minTime = now - this.#maxAge;
