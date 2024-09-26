@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Deletion</title>
+    <meta name="description" content="Glimpses of deleting bluesky posts." />
     <style type="text/css">
 
 .js .no-js-ohno { display: none; }
@@ -71,6 +72,14 @@ p {
 
 .info {
   font-size: 0.667em;
+}
+
+.info.connection {
+  display: none;
+}
+.info.connection.timeout {
+  display: block;
+  color: #c70;
 }
 
 .posts-area {
@@ -153,6 +162,9 @@ p {
           <summary>Filter language</summary>
           <form id="lang-selector"></form>
         </details>
+        <p class="info connection">
+          system status: missed connection
+        </p>
       </div>
 
       <div class="content">
@@ -168,33 +180,60 @@ p {
 
     <script type="text/javascript">
 const SHOW_WAITING_AFTER_MS = 1000;
-
+const DISCONNECT_TIMEOUT = 10000;
+const RECONNECT_RETRY = 3000;
 const PRESELECTED_LANGS = [[BROWSER_LANGS]];
-const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsParams = new URLSearchParams();
-PRESELECTED_LANGS.forEach(lang => wsParams.append('lang', lang));
-const ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
-
-ws.onopen = () => console.log('open');
-ws.onerror = e => console.error('e', e);
-ws.onmessage = ({ data }) => {
-  const content = JSON.parse(data);
-  const { type } = content;
-  if (type === 'post') {
-    console.log('message', content);
-    createPost(content.post);
-  } else if (type == 'observers') {
-    console.log('update observers', content.observers);
-    updateObservers(content.observers);
-  } else {
-    console.info('other message', content);
-  }
-};
 
 const postsAreaEl = document.querySelector('.posts-area');
 const waitingEl = document.querySelector('.post.waiting');
 const langSelectorForm = document.querySelector('#lang-selector');
 const observersInfoEl = document.querySelector('#info-observers');
+const connectionStatusEl = document.querySelector('.info.connection');
+
+const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsParams = new URLSearchParams();
+PRESELECTED_LANGS.forEach(lang => wsParams.append('lang', lang));
+let ws;
+const connect = () => {
+  ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
+  ws.onopen = petWatchdog;
+  ws.onclose = () => oops(1);
+  ws.onerror = console.error;
+  ws.onmessage = ({ data }) => {
+    petWatchdog();
+    const content = JSON.parse(data);
+    const { type } = content;
+    if (type === 'post') {
+      createPost(content.post);
+    } else if (type == 'observers') {
+      updateObservers(content.observers);
+    } else {
+      console.info('other message', content);
+    }
+  };
+};
+
+let wdt;
+let reconTimer;
+const oops = n => {
+  connectionStatusEl.classList.add('timeout');
+  let t = RECONNECT_RETRY * Math.pow(1.4, (n ?? 0));
+  t *= Math.random() / 10 + 1;
+  reconTimer = setTimeout(() => {
+    if (ws.readyState === ws.CLOSED) {
+      connect();
+    } else {
+      oops((n ?? 0) + 1);
+    }
+  }, t);
+};
+const petWatchdog = () => {
+  connectionStatusEl.classList.remove('timeout');
+  clearTimeout(wdt);
+  clearTimeout(reconTimer);
+  wdt = setTimeout(oops, DISCONNECT_TIMEOUT);
+};
+connect();
 
 let waitingTimer;
 waitingEl.style.setProperty('--h', `-${waitingEl.getBoundingClientRect().height}px`);
