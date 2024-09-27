@@ -1,0 +1,5 @@
+no license is provided for any use, for now.
+
+if you want to use any of this, please do reach out and ask.
+
+training ai models on any contents in this repository is expressly disallowed.
