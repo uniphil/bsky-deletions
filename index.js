@@ -6,7 +6,7 @@ import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
 
-const postCache = new PostCache(1500000);
+const postCache = new PostCache(1000000);
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
@@ -127,7 +127,7 @@ function handleDeletedPost(found) {
 }
 
 
-const STAT_CACHE_SIZE = 14400; // 24h at every 6s
+const STAT_CACHE_SIZE = 7200; // 12h at every 6s
 let statCache = [];
 const getStats = () => {
   const now_ms = +new Date();
