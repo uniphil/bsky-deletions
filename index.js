@@ -148,7 +148,6 @@ const getStats = () => {
 
 setInterval(() => {
   const stats = {...getStats(), langs: langTracker.getActive()};
-  console.log(JSON.stringify(stats));
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({
