@@ -17,10 +17,34 @@ if (process.env.NODE_ENV === 'production') {
   preloadedIndexHtmlContent = readFileSync('./index.html', 'utf-8');
 }
 
-const jetstream = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
+const jetstreamConnect = (n = 0) => {
+  console.log('jetstream connecting...');
+  const jws = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
+  jws.onmessage = handleJetstreamMessage;
+  jws.on('connect', () => {
+    n = 0;
+    console.log('jetstream connected.');
+  });
+  jws.on('error', e => {
+    console.error(e);
+    jws.close();
+  });
+  jws.on('close', e => {
+    const t = 1000 * Math.pow(1.3, n) * (1 + Math.random() / 10);
+    console.warn(`jetstream connection closed, retrying in ${t}ms`, e);
+    setTimeout(() => jetstreamConnect(n + 1), t);
+  });
+};
+jetstreamConnect();
 
-jetstream.onmessage = m => {
-  const contents = JSON.parse(m.data);
+function handleJetstreamMessage(m) {
+  let contents;
+  try {
+    contents = JSON.parse(m.data);
+  } catch (e) {
+    console.error('failed to parse json for jetstream message', e, m.data, m);
+    return;
+  }
   const message = filterJetstreamMessage(contents);
   if (message === undefined) return;
   const { type, t, rkey, langs, text, target } = message;
@@ -39,7 +63,7 @@ jetstream.onmessage = m => {
       deletedPostMiss += 1;
     }
   }
-};
+}
 
 const server = createServer(handleRequest);
 const wss = new WebSocketServer({ noServer: true });
