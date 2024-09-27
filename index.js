@@ -127,7 +127,7 @@ function handleDeletedPost(found) {
 }
 
 
-const STAT_CACHE_SIZE = 7200; // 12h at every 6s
+const STAT_CACHE_SIZE = 7200; // 24h at every 12s
 let statCache = [];
 const getStats = () => {
   const now_ms = +new Date();
@@ -156,7 +156,7 @@ setInterval(() => {
       }));
     }
   });
-}, 6000);
+}, 12000);
 
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));
