@@ -17,11 +17,12 @@ if (process.env.NODE_ENV === 'production') {
   preloadedIndexHtmlContent = readFileSync('./index.html', 'utf-8');
 }
 
+let jws;
 const jetstreamConnect = (n = 0) => {
   console.log('jetstream connecting...');
-  const jws = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
+  jws = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
   jws.onmessage = handleJetstreamMessage;
-  jws.on('connect', () => {
+  jws.on('open', () => {
     n = 0;
     console.log('jetstream connected.');
   });
