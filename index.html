@@ -175,7 +175,7 @@ a {
       <div class="meta">
         <h1>Final words</h1>
         <p class="info">Glimpses of deleting bluesky posts. Observing: <span id="info-observers"><em>waiting&hellip;</em></span></p>
-        <details>
+        <details id="filter-langs">
           <summary>Filter language</summary>
           <form id="lang-selector"></form>
         </details>
@@ -213,6 +213,7 @@ const PRESELECTED_LANGS = [[BROWSER_LANGS]];
 const postsAreaEl = document.querySelector('.posts-area');
 const waitingEl = document.querySelector('.post.waiting');
 const langSelectorForm = document.querySelector('#lang-selector');
+const includeUnsetLangInput = document.createElement('input');
 const observersInfoEl = document.querySelector('#info-observers');
 const connectionStatusEl = document.querySelector('.info.connection');
 
@@ -338,9 +339,27 @@ function showWaiting() {
   langEl.appendChild(document.createTextNode(lang));
   langSelectorForm.appendChild(document.createTextNode(' '));
 });
+(includeUntaggedLangs => {
+  const filterLangsEl = document.querySelector('#filter-langs');
+  const p = document.createElement('p');
+  filterLangsEl.appendChild(p);
+  const label = document.createElement('label');
+  p.appendChild(label);
+  const input = document.createElement('input');
+  label.appendChild(includeUnsetLangInput);
+  const text = document.createTextNode(' include unknown');
+  label.appendChild(text);
+
+  includeUnsetLangInput.type = 'checkbox';
+  includeUnsetLangInput.checked = includeUntaggedLangs;
+  includeUnsetLangInput.addEventListener('input', changeLanguageSelection);
+})([[BROWSER_LANGS]].includes(null));
 
 function changeLanguageSelection() {
   const newLangs = Array.from(new FormData(langSelectorForm).keys());
+  if (includeUnsetLangInput.checked) {
+    newLangs.push(null);
+  }
   ws.send(JSON.stringify({
     type: 'setLangs',
     langs: newLangs,

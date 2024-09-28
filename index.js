@@ -98,6 +98,10 @@ function handleRequest(req, res) {
       .filter(l => knownLangs.includes(l))
     ?? []));
 
+  if (preselectedLangs.includes('en')) {
+    preselectedLangs.push(null); // posts with no language tag have a high likelihood of being english
+  }
+
   const userContent = indexHtmlContent
     .replaceAll('[[BROWSER_LANGS]]', JSON.stringify(preselectedLangs))
     .replaceAll('[[KNOWN_LANGS]]', JSON.stringify(knownLangs));
@@ -121,7 +125,10 @@ server.on('clientError', (err, socket) => {
 });
 
 wss.on('connection', (ws, req) => {
-  ws.langs = new URL(`https://host${req.url}`).searchParams.getAll('lang');
+  ws.langs = new Set(new URL(`https://host${req.url}`).searchParams
+    .getAll('lang')
+    .map(l => l === 'null' ? null : l));
+  console.log('new connection, langs:', ws.langs);
   ws.on('message', data => {
     let message;
     try {
@@ -131,18 +138,20 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (message.type === 'setLangs') {
-      ws.langs = message.langs;
+      ws.langs = new Set(message.langs);
+      console.log('change langs:', ws.langs);
     }
   });
 });
 
 function handleDeletedPost(found) {
+  const postLangs = found.value.langs ?? [null];
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
-      if ((client.langs?.length ?? 0) > 0) {
-        if ((found.value.langs?.length ?? 0) === 0) return;
-        if (!found.value.langs.some(l => client.langs.includes(l))) return;
-      }
+      if (
+        (client.langs?.size ?? 0) > 0 &&
+        !postLangs.some(lang => client.langs.has(lang))
+      ) return;
       client.send(JSON.stringify({
         'type': 'post',
         'post': found,
