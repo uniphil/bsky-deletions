@@ -47,13 +47,18 @@ a {
 }
 .layout .content {
   flex: 0 1 24em;
+  max-width: 24em;
   padding: 1em 1em 4em;
   position: relative;
 }
 .layout .content .thanks {
+  align-items: baseline;
   bottom: 0;
+  display: flex;
   font-family: sans-serif;
   font-size: 0.667em;
+  gap: 1em;
+  line-height: 1.1;
   margin: 0 auto;
   opacity: 0.5;
   position: absolute;
@@ -189,9 +194,11 @@ a {
         </div>
 
         <div class="thanks">
+          <a href="https://bsky.app/profile/uniphil.bsky.social/post/3l53o5atwio2t" target="_blank">about</a>
+          <a href="https://docs.google.com/forms/d/e/1FAIpQLSeuV32IJL_xWKCHD6JsuWa8D60-0n10LQ6Fn5_Iw1Jj9hyKAQ/viewform" target="_blank">feedback</a>
           <details>
             <summary>thanks</summary>
-            <p>data: bluesky's public <a href="https://github.com/bluesky-social/jetstream">jetstream instance</a>. <a href="https://docs.google.com/forms/d/e/1FAIpQLSeuV32IJL_xWKCHD6JsuWa8D60-0n10LQ6Fn5_Iw1Jj9hyKAQ/viewform" target="_blank">feedback</a>.</p>
+            <p>data: bluesky's public <a href="https://github.com/bluesky-social/jetstream" target="_blank">jetstream</a> instance.</p>
           </details>
         </div>
       </div>
@@ -199,7 +206,7 @@ a {
 
     <script type="text/javascript">
 const SHOW_WAITING_AFTER_MS = 1000;
-const DISCONNECT_TIMEOUT = 10000;
+const DISCONNECT_TIMEOUT = 25 * 1000; // server sends observers every 12s
 const RECONNECT_RETRY = 3000;
 const PRESELECTED_LANGS = [[BROWSER_LANGS]];
 
