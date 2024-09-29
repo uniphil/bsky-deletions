@@ -24,7 +24,7 @@ const redact = (text, facets) => {
       // 3. apply redactions
       redactedText += sourceBytes.slice(lastEnd, byteStart).toString();
       redactedText += features.some(f => f.$type === 'app.bsky.richtext.facet#mention') ? '@' : 'www.';
-      redactedText += '████████████';
+      redactedText += '█████████';
       lastEnd = byteEnd;
     });
 

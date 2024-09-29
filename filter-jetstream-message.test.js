@@ -155,7 +155,7 @@ test('the redactor should redact link text', () => {
       }
     ]
   )).toBe(
-    '【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU\n\nwww.████████████\n\n【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU'
+    '【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU\n\nwww.█████████\n\n【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU'
   );
 });
 
@@ -190,7 +190,7 @@ test('the redactor should redact mentions', () => {
       }
     ]
   )).toBe(
-    'Parabéns @████████████ pela vaga conquistada pra final 👏🏻👏🏻👏🏻👏🏻🦋❤️ \n#EstrelaDaCasa'
+    'Parabéns @█████████ pela vaga conquistada pra final 👏🏻👏🏻👏🏻👏🏻🦋❤️ \n#EstrelaDaCasa'
   );
 });
 
@@ -226,6 +226,6 @@ test('the redactor should redact multiple mentions', () => {
       }
     ]
   )).toBe(
-    'test @████████████ two @████████████ three.'
+    'test @█████████ two @█████████ three.'
   );
 });

@@ -114,6 +114,10 @@ a {
   position: relative;
   text-align: center;
 }
+.post .wordy {
+  font-size: 0.8em;
+  line-height: 1.4em;
+}
 
 .post .post-info {
   color: #666;
@@ -292,15 +296,29 @@ const createPost = post => {
 
   const postEl = document.createElement('div');
   postEl.classList.add('post');
+  let wordy = text.length > 100;
 
-  text.split('\n').forEach(p => {
-    const postP = document.createElement('p');
-    postP.textContent = p;
-    postEl.appendChild(postP);
-  });
+  const paras = text
+    .replace(/\n\s*\n/g, '\n')
+    .split('\n')
+    .map((p, i) => {
+      const postP = document.createElement('p');
+      postP.textContent = p;
+      if (i > 3) postEl.classList.add('wordy');
+      return postP;
+    });
+
+  let postContentContainer = postEl;
+  if (wordy) {
+    postContentContainer = document.createElement('div');
+    postContentContainer.classList.add('wordy');
+    postEl.appendChild(postContentContainer);
+  }
+  paras.forEach(p => postContentContainer.appendChild(p));
 
   let postTypeName = 'post';
   if (target === 'reply') postTypeName = 'reply';
+  else if (target === 'quote') postTypeName = 'quote post';
   const postInfoEl = document.createElement('div');
   postInfoEl.classList.add('post-info');
   postInfoEl.textContent = `${postTypeName}, age ${getNiceAge(post.age)}`;
@@ -385,8 +403,6 @@ function updateObservers(observers) {
     observersInfoEl.textContent = `you and ${observers-1} others.`;
   }
 }
-
-// todo: smaller text for bigger messages
 
     </script>
   </body>
