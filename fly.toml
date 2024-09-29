@@ -8,6 +8,9 @@ primary_region = 'ewr'
 
 [build]
 
+[deploy]
+  strategy = "bluegreen"
+
 [http_service]
   internal_port = 3000
   force_https = true
@@ -21,8 +24,8 @@ primary_region = 'ewr'
     soft_limit = 500
 
 [[http_service.checks]]
-  grace_period = "40s"
-  interval = "30s"
+  grace_period = "45s"
+  interval = "15s"
   method = "GET"
   timeout = "2s"
   path = "/ready"
