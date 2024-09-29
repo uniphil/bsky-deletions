@@ -137,6 +137,43 @@ test('the filter should identify quotes that are not replies', () => {
   });
 });
 
+test('the filter should normalize the post language', () => {
+  expect(filter({
+    "did": "did:plc:xxxxxxxxx",
+    "time_us": 1711111116933838,
+    "type": "com",
+    "commit": {
+      "rev": "3l4yXXXXXXXXX",
+      "type": "c",
+      "collection": "app.bsky.feed.post",
+      "rkey": "3l4yYYYYYYYY",
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "createdAt": "2024-09-29T03:40:57.647Z",
+        "embed": {
+          "$type": "app.bsky.embed.record",
+          "record": {
+            "cid": "bafyreibn7gllgijvflzqfs75nhqs7ohcgpe572etunmosxpxnkch642vey",
+            "uri": "at://did:plc:227vbwa4l4m3nbyjjsgylvop/app.bsky.feed.post/3l564kblmqh2u"
+          }
+        },
+        "langs": [
+          "EN"
+        ],
+        "text": "nao plz"
+      },
+      "cid": "asdfasdfasdfasdfasdfasdfasdf"
+    }
+  })).toStrictEqual({
+    type: 'post',
+    t: 1711111116933,
+    rkey: '3l4yYYYYYYYY',
+    langs: ['en'],
+    text: 'nao plz',
+    target: 'quote',
+  });
+});
+
 test('the redactor should redact link text', () => {
   expect(redact(
     "【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU\n\nhttps://www.example.com/0123456789\n\n【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU",

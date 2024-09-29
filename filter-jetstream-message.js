@@ -47,7 +47,7 @@ const filter = contents => {
       type = 'update';
     }
     const redacted = redact(text, facets);
-    const normLangs = langs?.map(lang => lang.split('-')[0]);
+    const normLangs = langs?.map(lang => lang.split('-')[0].toLowerCase());
     let target = null;
     if (reply !== undefined) {
       target = 'reply';
