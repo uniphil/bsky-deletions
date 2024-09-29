@@ -205,6 +205,11 @@ a {
     </div>
 
     <script type="text/javascript">
+window.onerror = (message, source, lineno, colno, e) => navigator.sendBeacon('/oops',
+  JSON.stringify({ message, source, lineno, colno, stack: e && e.stack }));
+    </script>
+
+    <script type="text/javascript">
 const SHOW_WAITING_AFTER_MS = 1000;
 const DISCONNECT_TIMEOUT = 25 * 1000; // server sends observers every 12s
 const RECONNECT_RETRY = 3000;
@@ -222,6 +227,7 @@ const wsParams = new URLSearchParams();
 PRESELECTED_LANGS.forEach(lang => wsParams.append('lang', lang));
 let ws;
 const connect = () => {
+  // TODO: fix langs on reconnect
   ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
   ws.onopen = petWatchdog;
   ws.onclose = () => oops(1);

@@ -70,19 +70,24 @@ const server = createServer(handleRequest);
 const wss = new WebSocketServer({ noServer: true });
 
 function handleRequest(req, res) {
-  if (req.method !== 'GET') {
-    res.writeHead(405);
-    return res.end('method not allowed');
-  }
-  if (req.url === '/stats') {
+  req.on('error', console.error); // avoid throwing, possibly?
+  res.on('error', console.error);
+  if (req.method === 'GET' && req.url === '/stats') {
     res.setHeader('content-type', 'application/json');
     res.setHeader('cache-control', 'public, max-age=300, immutable');
     res.writeHead(200);
     return res.end(JSON.stringify(statCache));
   }
+  if (req.method === 'POST' && req.url === '/oops') {
+    return handleClientErrorReport(req, res);
+  }
   if (req.url !== '/') {
     res.writeHead(404);
     return res.end('not found');
+  }
+  if (req.method !== 'GET') {
+    res.writeHead(405);
+    return res.end('method not allowed');
   }
 
   // always reload in dev
@@ -112,6 +117,21 @@ function handleRequest(req, res) {
   res.writeHead(200);
   res.end(userContent);
 };
+
+function handleClientErrorReport(req, res) {
+  const ua = req.headers['user-agent'];
+  const body = [];
+  req.on('data', chunk => { body.push(chunk); }).on('end', () => {
+    try {
+      const errInfo = JSON.parse(Buffer.concat(body).toString());
+      console.warn('client error report', JSON.stringify({ ua, errInfo }));
+    } catch (e) {
+      console.warn('failed to receive client error report from', ua);
+    };
+    res.writeHead(201);
+    return res.end('got it. and sorry :/');
+  });
+}
 
 server.on('upgrade', function upgrade(req, socket, head) {
   wss.handleUpgrade(req, socket, head, function done(ws) {
