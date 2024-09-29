@@ -21,7 +21,7 @@ let jws;
 const jetstreamConnect = (n = 0) => {
   console.log('jetstream connecting...');
   jws = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
-  jws.onmessage = handleJetstreamMessage;
+  jws.on('message', handleJetstreamMessage);
   jws.on('open', () => {
     n = 0;
     console.log('jetstream connected.');
@@ -41,7 +41,7 @@ jetstreamConnect();
 function handleJetstreamMessage(m) {
   let contents;
   try {
-    contents = JSON.parse(m.data);
+    contents = JSON.parse(m);
   } catch (e) {
     console.error('failed to parse json for jetstream message', e, m.data, m);
     return;

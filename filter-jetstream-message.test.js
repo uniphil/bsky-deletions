@@ -1,4 +1,4 @@
-import filter from './filter-jetstream-message';
+import filter, { redact } from './filter-jetstream-message';
 
 test('the filter should map creation to posts', () => {
   expect(filter({
@@ -60,8 +60,6 @@ test('the filter should normalize langs', () => {
   });
 });
 
-
-
 test('the filter should identify replies', () => {
   expect(filter({
     "did": "did:plc:xxxxxxxxx",
@@ -81,11 +79,11 @@ test('the filter should identify replies', () => {
         "reply": {
           "parent": {
             "cid": "asdfasdfasdfasdf",
-            "uri": "at://did:plc:u6mavbfl2p54ycmipyeihdb3/app.bsky.feed.post/3l4yZZZZZZZZZ"
+            "uri": "at://did:plc:xxxxxx/app.bsky.feed.post/3l4yZZZZZZZZZ"
           },
           "root": {
             "cid": "asdfasdfasdfasdf",
-            "uri": "at://did:plc:u6mavbfl2p54ycmipyeihdb3/app.bsky.feed.post/3l4yZZZZZZZZZ"
+            "uri": "at://did:plc:xxxxxx/app.bsky.feed.post/3l4yZZZZZZZZZ"
           }
         },
         "text": "more is coming."
@@ -100,4 +98,97 @@ test('the filter should identify replies', () => {
     text: 'more is coming.',
     target: 'reply',
   });
+});
+
+test('the redactor should redact link text', () => {
+  expect(redact(
+    "【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU\n\nhttps://www.example.com/0123456789\n\n【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU",
+    [
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#link",
+            "uri": "https://www.example.com/0123456789"
+          }
+        ],
+        "index": {
+          "byteEnd": 135,
+          "byteStart": 101
+        }
+      }
+    ]
+  )).toBe(
+    '【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU\n\nwww.████████████\n\n【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU'
+  );
+});
+
+test('the redactor should redact mentions', () => {
+  expect(redact(
+    "Parabéns @unnaxoficial.bsky.social pela vaga conquistada pra final 👏🏻👏🏻👏🏻👏🏻🦋❤️ \n#EstrelaDaCasa",
+    [
+      {
+        "$type": "app.bsky.richtext.facet",
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#mention",
+            "did": "did:plc:xxxxxx"
+          }
+        ],
+        "index": {
+          "byteEnd": 35,
+          "byteStart": 10
+        }
+      },
+      {
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#tag",
+            "tag": "EstrelaDaCasa"
+          }
+        ],
+        "index": {
+          "byteEnd": 126,
+          "byteStart": 112
+        }
+      }
+    ]
+  )).toBe(
+    'Parabéns @████████████ pela vaga conquistada pra final 👏🏻👏🏻👏🏻👏🏻🦋❤️ \n#EstrelaDaCasa'
+  );
+});
+
+test('the redactor should redact multiple mentions', () => {
+  expect(redact(
+    "test @one.bsky.social two @lookitup.baby three.",
+    [
+      {
+        "$type": "app.bsky.richtext.facet",
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#mention",
+            "did": "did:plc:xxxxxx"
+          }
+        ],
+        "index": {
+          "byteEnd": 40,
+          "byteStart": 26
+        }
+      },
+      {
+        "$type": "app.bsky.richtext.facet",
+        "features": [
+          {
+            "$type": "app.bsky.richtext.facet#mention",
+            "did": "did:plc:xxxxxx"
+          }
+        ],
+        "index": {
+          "byteEnd": 21,
+          "byteStart": 5
+        }
+      }
+    ]
+  )).toBe(
+    'test @████████████ two @████████████ three.'
+  );
 });
