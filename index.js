@@ -11,7 +11,9 @@ const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
 let replaying = true;
-let lastPostMs = +new Date() - 30 * 60 * 1000; // begin startup replay from 30 mins ago
+const REPLAY_MINUTES = (process.env.NODE_ENV === 'production') ? 30 : 10;
+const REPLAY_COMPLETE_IF_WITHIN_S = 30; // consider replay complete if the last post is within this many seconds ofnow
+let lastPostMs = +new Date() - REPLAY_MINUTES * 60 * 1000; // begin startup replay from
 
 
 let preloadedIndexHtmlContent;
@@ -71,7 +73,7 @@ function handleJetstreamMessage(m) {
     }
   }
   if (t) {
-    if (replaying && t > (+new Date() - 1 * 60 * 1000)) {
+    if (replaying && t > (+new Date() - REPLAY_COMPLETE_IF_WITHIN_S * 1000)) {
       replaying = false;
     }
     if (t > lastPostMs) {
@@ -86,6 +88,18 @@ const wss = new WebSocketServer({ noServer: true });
 function handleRequest(req, res) {
   req.on('error', console.error); // avoid throwing, possibly?
   res.on('error', console.error);
+  if (req.method === 'GET' && req.url === '/ready') {
+    if (replaying) {
+      res.writeHead(503);
+      return res.end('waiting for replay to catch up');
+    } else if (jws.readyState !== WebSocket.OPEN) {
+      res.writeHead(503);
+      return res.end('jetstream disconnected');
+    } else {
+      res.writeHead(200);
+      return res.end('ready');
+    }
+  }
   if (req.method === 'GET' && req.url === '/stats') {
     res.setHeader('content-type', 'application/json');
     res.setHeader('cache-control', 'public, max-age=300, immutable');
@@ -226,19 +240,22 @@ setInterval(() => {
   });
 }, 12000);
 
-const PORT = 3000;
 console.log('getting jetstream replay...');
 let lastReplayLog = +new Date();
 (function waitForReplay() {
   if (replaying) {
     const now = +new Date;
-    if ((now - lastReplayLog) > 2 * 1000) {
+    if ((now - lastReplayLog) > 2 * 1000) { // log replay progress every 2s
       lastReplayLog = now;
-      console.log('replaying, cache size', postCache.size());
+      const cacheSize = postCache.size();
+      const minutesReplayed = Math.round((lastPostMs - postCache.oldest()) / 1000 / 60 * 10) / 10;
+      console.log('replay', { cacheSize, minutesReplayed });
     }
-    setTimeout(waitForReplay, 333);
+    setTimeout(waitForReplay, 200);
   } else {
-    console.log('caught up within ~1min, starting server...')
-    server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));
+    console.log('replay complete, now forwarding deletions.');
   }
 })();
+
+const PORT = 3000;
+server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));

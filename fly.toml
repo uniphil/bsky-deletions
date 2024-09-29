@@ -16,6 +16,17 @@ primary_region = 'ewr'
   min_machines_running = 1
   processes = ['app']
 
+  [http_service.concurrency]
+    type = "requests" # skeptical with ws but let's see
+    soft_limit = 500
+
+[[http_service.checks]]
+  grace_period = "40s"
+  interval = "30s"
+  method = "GET"
+  timeout = "2s"
+  path = "/ready"
+
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
