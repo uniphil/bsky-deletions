@@ -37,7 +37,7 @@ const filter = contents => {
   const t = Math.floor(contents.time_us / 1000);
   const { type: commitType, rkey, record } = contents.commit;
   if (['c', 'u'].includes(commitType)) {
-    const { text, facets, langs, reply } = record;
+    const { text, embed, facets, langs, reply } = record;
     let type;
     if (commitType === 'c') {
       if (text === '') return;
@@ -48,7 +48,12 @@ const filter = contents => {
     }
     const redacted = redact(text, facets);
     const normLangs = langs?.map(lang => lang.split('-')[0]);
-    const target = reply === undefined ? null : 'reply';
+    let target = null;
+    if (reply !== undefined) {
+      target = 'reply';
+    } else if (embed && embed.$type === 'app.bsky.embed.record') {
+      target = 'quote';
+    }
     return { type, t, rkey, langs: normLangs, text: redacted, target };
   } else if (commitType === 'd') {
     return { type: 'delete', t, rkey };
@@ -57,7 +62,3 @@ const filter = contents => {
 
 export { redact };
 export default filter;
-
-
-// todo: identify quote target
-// https://docs.bsky.app/docs/advanced-guides/posts#quote-posts
