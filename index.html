@@ -278,7 +278,10 @@ const petWatchdog = () => {
   clearTimeout(reconTimer);
   wdt = setTimeout(oops, DISCONNECT_TIMEOUT);
 };
-connect([[BROWSER_LANGS]]);
+let initialLangs = [[BROWSER_LANGS]];
+try { initialLangs = JSON.parse(localStorage.getItem('langs')) || initialLangs; }
+catch (e) { console.warn('could not load saved langs', e) }
+connect(initialLangs);
 
 let waitingTimer;
 waitingEl.style.setProperty('--h', `-${waitingEl.getBoundingClientRect().height}px`);
@@ -364,7 +367,7 @@ function showWaiting() {
   langSelectorForm.appendChild(langEl);
   const langBox = document.createElement('input');
   langBox.type = 'checkbox';
-  if ([[BROWSER_LANGS]].includes(lang)) langBox.checked = true;
+  if (initialLangs.includes(lang)) langBox.checked = true;
   langBox.name = lang;
   langBox.addEventListener('input', changeLanguageSelection);
   langEl.appendChild(langBox);
@@ -385,17 +388,17 @@ function showWaiting() {
   includeUnsetLangInput.type = 'checkbox';
   includeUnsetLangInput.checked = includeUntaggedLangs;
   includeUnsetLangInput.addEventListener('input', changeLanguageSelection);
-})([[BROWSER_LANGS]].includes(null));
+})(initialLangs.includes(null));
 function getSelectedLangs() {
   const langs = Array.from(new FormData(langSelectorForm).keys());
   if (includeUnsetLangInput.checked) langs.push(null);
   return langs;
 }
 function changeLanguageSelection() {
-  ws.send(JSON.stringify({
-    type: 'setLangs',
-    langs: getSelectedLangs(),
-  }));
+  const langs = getSelectedLangs();
+  try { localStorage.setItem('langs', JSON.stringify(langs)); }
+  catch (e) { console.error('could not save lang selection', e); }
+  ws.send(JSON.stringify({ type: 'setLangs', langs }));
 }
 
 function updateObservers(observers) {
