@@ -213,7 +213,6 @@ window.onerror = (message, source, lineno, colno, e) => navigator.sendBeacon('/o
 const SHOW_WAITING_AFTER_MS = 1000;
 const DISCONNECT_TIMEOUT = 25 * 1000; // server sends observers every 12s
 const RECONNECT_RETRY = 3000;
-const PRESELECTED_LANGS = [[BROWSER_LANGS]];
 
 const postsAreaEl = document.querySelector('.posts-area');
 const waitingEl = document.querySelector('.post.waiting');
@@ -222,12 +221,11 @@ const includeUnsetLangInput = document.createElement('input');
 const observersInfoEl = document.querySelector('#info-observers');
 const connectionStatusEl = document.querySelector('.info.connection');
 
-const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsParams = new URLSearchParams();
-PRESELECTED_LANGS.forEach(lang => wsParams.append('lang', lang));
 let ws;
-const connect = () => {
-  // TODO: fix langs on reconnect
+const connect = langs => {
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsParams = new URLSearchParams();
+  langs.forEach(lang => wsParams.append('lang', lang));
   ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
   ws.onopen = petWatchdog;
   ws.onclose = () => oops(1);
@@ -254,7 +252,7 @@ const oops = n => {
   t *= Math.random() / 10 + 1;
   reconTimer = setTimeout(() => {
     if (ws.readyState === ws.CLOSED) {
-      connect();
+      connect(getSelectedLangs());
     } else {
       oops((n ?? 0) + 1);
     }
@@ -266,7 +264,7 @@ const petWatchdog = () => {
   clearTimeout(reconTimer);
   wdt = setTimeout(oops, DISCONNECT_TIMEOUT);
 };
-connect();
+connect([[BROWSER_LANGS]]);
 
 let waitingTimer;
 waitingEl.style.setProperty('--h', `-${waitingEl.getBoundingClientRect().height}px`);
@@ -360,15 +358,15 @@ function showWaiting() {
   includeUnsetLangInput.checked = includeUntaggedLangs;
   includeUnsetLangInput.addEventListener('input', changeLanguageSelection);
 })([[BROWSER_LANGS]].includes(null));
-
+function getSelectedLangs() {
+  const langs = Array.from(new FormData(langSelectorForm).keys());
+  if (includeUnsetLangInput.checked) langs.push(null);
+  return langs;
+}
 function changeLanguageSelection() {
-  const newLangs = Array.from(new FormData(langSelectorForm).keys());
-  if (includeUnsetLangInput.checked) {
-    newLangs.push(null);
-  }
   ws.send(JSON.stringify({
     type: 'setLangs',
-    langs: newLangs,
+    langs: getSelectedLangs(),
   }));
 }
 
