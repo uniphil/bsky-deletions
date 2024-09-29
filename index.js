@@ -10,6 +10,9 @@ const postCache = new PostCache(1000000);
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
+let replaying = true;
+let lastPostMs = +new Date() - 30 * 60 * 1000; // begin startup replay from 30 mins ago
+
 
 let preloadedIndexHtmlContent;
 if (process.env.NODE_ENV === 'production') {
@@ -20,7 +23,8 @@ if (process.env.NODE_ENV === 'production') {
 let jws;
 const jetstreamConnect = (n = 0) => {
   console.log('jetstream connecting...');
-  jws = new WebSocket('wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post');
+  const cursor = lastPostMs * 1000; // us timestamp
+  jws = new WebSocket(`wss://jetstream.atproto.tools/subscribe?wantedCollections=app.bsky.feed.post&cursor=${cursor}`);
   jws.on('message', handleJetstreamMessage);
   jws.on('open', () => {
     n = 0;
@@ -58,10 +62,20 @@ function handleJetstreamMessage(m) {
   } else if (type === 'delete') {
     const found = postCache.take(t, rkey);
     if (found !== undefined) {
-      handleDeletedPost(found);
+      if (!replaying) {
+        handleDeletedPost(found);
+      }
       deletedPostHit += 1;
     } else {
       deletedPostMiss += 1;
+    }
+  }
+  if (t) {
+    if (replaying && t > (+new Date() - 1 * 60 * 1000)) {
+      replaying = false;
+    }
+    if (t > lastPostMs) {
+      lastPostMs = t;
     }
   }
 }
@@ -213,4 +227,18 @@ setInterval(() => {
 }, 12000);
 
 const PORT = 3000;
-server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));
+console.log('getting jetstream replay...');
+let lastReplayLog = +new Date();
+(function waitForReplay() {
+  if (replaying) {
+    const now = +new Date;
+    if ((now - lastReplayLog) > 2 * 1000) {
+      lastReplayLog = now;
+      console.log('replaying, cache size', postCache.size());
+    }
+    setTimeout(waitForReplay, 333);
+  } else {
+    console.log('caught up within ~1min, starting server...')
+    server.listen(PORT, '0.0.0.0', () => console.log(`listening on ${PORT}`));
+  }
+})();
