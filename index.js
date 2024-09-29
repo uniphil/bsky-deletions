@@ -2,6 +2,7 @@
 import { readFileSync } from 'fs';
 import { createServer } from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
+import { Counter, Gauge, Histogram, register, collectDefaultMetrics } from 'prom-client';
 import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
@@ -11,16 +12,40 @@ const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
 let replaying = true;
-const REPLAY_MINUTES = (process.env.NODE_ENV === 'production') ? 30 : 10;
+const REPLAY_MINUTES = (process.env.NODE_ENV === 'production') ? 30 : 5;
 const REPLAY_COMPLETE_IF_WITHIN_S = 30; // consider replay complete if the last post is within this many seconds ofnow
 let lastPostMs = +new Date() - REPLAY_MINUTES * 60 * 1000; // begin startup replay from
-
 
 let preloadedIndexHtmlContent;
 if (process.env.NODE_ENV === 'production') {
   console.log('preloading html template...');
   preloadedIndexHtmlContent = readFileSync('./index.html', 'utf-8');
 }
+
+collectDefaultMetrics();
+const postCacheDepth = new Gauge({
+  name: 'post_cache_depth',
+  help: 'Seconds since the oldest item was created',
+});
+const postCacheSize = new Gauge({
+  name: 'post_cache_size',
+  help: 'Number of items in the post cache',
+});
+const postCounter = new Counter({
+  name: 'posts',
+  help: 'Count of new posts',
+  labelNames: ['lang', 'target'],
+});
+const postDeleteCounter = new Counter({
+  name: 'post_deletes',
+  help: 'Count of deleted posts, lang and target only available for cach hits',
+  labelNames: ['lang', 'target', 'cache'],
+});
+const postAge = new Histogram({
+  name: 'post_deleted_age',
+  help: 'Histogram of ages of deleted posts, cache misses excluded',
+  labelNames: ['lang', 'target'],
+});
 
 let jws;
 const jetstreamConnect = (n = 0) => {
@@ -58,6 +83,7 @@ function handleJetstreamMessage(m) {
   if (type === 'post') {
     postCache.set(t, rkey, { text, langs, target });
     langs?.forEach(l => langTracker.addSighting(l));
+    postCounter.inc({ lang: langs && langs[0], target });
   } else if (type === 'update') {
     postCache.update(t, rkey, { text, langs, target });
     langs?.forEach(l => langTracker.addSighting(l));
@@ -67,8 +93,12 @@ function handleJetstreamMessage(m) {
       if (!replaying) {
         handleDeletedPost(found);
       }
+      const { value: { langs, target }, age } = found;
+      postAge.observe({ lang: langs && langs[0], target }, age / 1000);
+      postDeleteCounter.inc({ cache: 'hit', lang: langs && langs[0], target: target });
       deletedPostHit += 1;
     } else {
+      postDeleteCounter.inc({ cache: 'miss' });
       deletedPostMiss += 1;
     }
   }
@@ -104,7 +134,21 @@ function handleRequest(req, res) {
     res.setHeader('content-type', 'application/json');
     res.setHeader('cache-control', 'public, max-age=300, immutable');
     res.writeHead(200);
-    return res.end(JSON.stringify(statCache));
+    return res.end(JSON.stringify(getStats()));
+  }
+  if (req.method === 'GET' && req.url === '/metrics') {
+    postCacheDepth.set(Math.round((+new Date - postCache.oldest()) / 1000));
+    postCacheSize.set(postCache.size());
+    return register.metrics().then(
+      metrics => {
+        res.setHeader('content-type', register.contentType);
+        res.setHeader('cache-control', 'public, max-age=5'); // fly's grafana scrapes every 15
+        res.end(metrics);
+      },
+      metricsErr => {
+        res.writeHead(500);
+        res.end('error collecting metrics');
+      });
   }
   if (req.method === 'POST' && req.url === '/oops') {
     return handleClientErrorReport(req, res);
@@ -208,9 +252,6 @@ function handleDeletedPost(found) {
   });
 }
 
-
-const STAT_CACHE_SIZE = 7200; // 24h at every 12s
-let statCache = [];
 const getStats = () => {
   const now_ms = +new Date();
   const now_s = Math.round(now_ms / 1000);
@@ -218,23 +259,17 @@ const getStats = () => {
     cached: postCache.size(),
     oldest: Math.round((now_ms - postCache.oldest()) / 1000),
     hit_rate: deletedPostHit / (deletedPostHit + deletedPostMiss),
-    langs: langTracker._getStats(),
     clients: wss.clients.size,
   };
-  if (statCache.length >= STAT_CACHE_SIZE) {
-    statCache.unshift();
-  }
-  statCache.push({...currentStats, t: now_s});
   return currentStats;
 }
 
 setInterval(() => {
-  const stats = {...getStats(), langs: langTracker.getActive()};
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({
         'type': 'observers',
-        'observers': stats.clients,
+        'observers': wss.clients.size,
       }));
     }
   });

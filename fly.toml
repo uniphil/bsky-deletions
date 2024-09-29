@@ -11,6 +11,10 @@ primary_region = 'ewr'
 [deploy]
   strategy = "bluegreen"
 
+[metrics]
+  port = 3000
+  path = "/metrics"
+
 [http_service]
   internal_port = 3000
   force_https = true
