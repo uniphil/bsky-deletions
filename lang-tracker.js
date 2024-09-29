@@ -11,7 +11,7 @@ class LangTracker {
   }
   getActive() {
     const mostPopularLangSightings = Math.max(...this.#map.values());
-    const sightingsThreshold = Math.floor(mostPopularLangSightings / 1000);
+    const sightingsThreshold = Math.floor(mostPopularLangSightings / 300);
     return Array.from(this.#map.entries())
       .filter(([_, c]) => c > sightingsThreshold)
       .sort(([_ka, a], [_kb, b]) => b - a)

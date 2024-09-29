@@ -30,6 +30,14 @@ p {
 a {
   color: inherit;
 }
+#lang-selector {
+  column-gap: 0.4em;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin: 0.5em 0;
+  row-gap: 0.3em;
+}
 
 .layout {
   display: flex;
@@ -51,7 +59,7 @@ a {
   padding: 1em 1em 4em;
   position: relative;
 }
-.layout .content .thanks {
+.thanks {
   align-items: baseline;
   bottom: 0;
   display: flex;
@@ -62,6 +70,9 @@ a {
   margin: 0 auto;
   opacity: 0.5;
   position: absolute;
+}
+.thanks:hover {
+  opacity: 0.8;
 }
 
 @media screen and (max-width: 26em) {
