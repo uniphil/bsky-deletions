@@ -45,8 +45,11 @@ const postAge = new Histogram({
   name: 'post_deleted_age',
   help: 'Histogram of ages of deleted posts, cache misses excluded',
   labelNames: ['target'],
-  buckets: exponentialBuckets(4, 4, 8),
+  buckets: exponentialBuckets(20, 1.48, 20).map(Math.round),
 });
+postAge.zero({ target: null });
+postAge.zero({ target: 'reply' });
+postAge.zero({ target: 'quote' });
 
 let jws;
 const jetstreamConnect = (n = 0) => {
