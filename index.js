@@ -2,7 +2,7 @@
 import { readFileSync } from 'fs';
 import { createServer } from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
-import { Counter, Gauge, Histogram, register, collectDefaultMetrics } from 'prom-client';
+import { Counter, Gauge, Histogram, register, collectDefaultMetrics, exponentialBuckets } from 'prom-client';
 import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
@@ -44,7 +44,8 @@ const postDeleteCounter = new Counter({
 const postAge = new Histogram({
   name: 'post_deleted_age',
   help: 'Histogram of ages of deleted posts, cache misses excluded',
-  labelNames: ['lang', 'target'],
+  labelNames: ['target'],
+  buckets: exponentialBuckets(4, 4, 8),
 });
 
 let jws;
@@ -94,7 +95,7 @@ function handleJetstreamMessage(m) {
         handleDeletedPost(found);
       }
       const { value: { langs, target }, age } = found;
-      postAge.observe({ lang: langs && langs[0], target }, age / 1000);
+      postAge.observe({ target }, age / 1000);
       postDeleteCounter.inc({ cache: 'hit', lang: langs && langs[0], target: target });
       deletedPostHit += 1;
     } else {
