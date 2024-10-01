@@ -73,7 +73,7 @@ const jetstreamConnect = (n = 0) => {
 };
 jetstreamConnect();
 
-function handleJetstreamMessage(m) {
+async function handleJetstreamMessage(m) {
   let contents;
   try {
     contents = JSON.parse(m);
@@ -85,14 +85,14 @@ function handleJetstreamMessage(m) {
   if (message === undefined) return;
   const { type, t, rkey, langs, text, target } = message;
   if (type === 'post') {
-    postCache.set(t, rkey, { text, langs, target });
+    await postCache.set(t, rkey, { text, langs, target });
     langs?.forEach(l => langTracker.addSighting(l));
     postCounter.inc({ lang: langs && langs[0], target });
   } else if (type === 'update') {
-    postCache.update(t, rkey, { text, langs, target });
+    await postCache.update(t, rkey, { text, langs, target });
     langs?.forEach(l => langTracker.addSighting(l));
   } else if (type === 'delete') {
-    const found = postCache.take(t, rkey);
+    const found = await postCache.take(t, rkey);
     if (found !== undefined) {
       if (!replaying) {
         handleDeletedPost(found);
@@ -119,7 +119,7 @@ function handleJetstreamMessage(m) {
 const server = createServer(handleRequest);
 const wss = new WebSocketServer({ noServer: true });
 
-function handleRequest(req, res) {
+async function handleRequest(req, res) {
   req.on('error', console.error); // avoid throwing, possibly?
   res.on('error', console.error);
   if (req.method === 'GET' && req.url === '/ready') {
@@ -138,11 +138,11 @@ function handleRequest(req, res) {
     res.setHeader('content-type', 'application/json');
     res.setHeader('cache-control', 'public, max-age=300, immutable');
     res.writeHead(200);
-    return res.end(JSON.stringify(getStats()));
+    return res.end(JSON.stringify(await getStats()));
   }
   if (req.method === 'GET' && req.url === '/metrics') {
-    postCacheDepth.set(Math.round((+new Date - postCache.oldest()) / 1000));
-    postCacheSize.set(postCache.size());
+    postCacheDepth.set(Math.round((+new Date - await postCache.oldest()) / 1000));
+    postCacheSize.set(await postCache.size());
     return register.metrics().then(
       metrics => {
         res.setHeader('content-type', register.contentType);
@@ -256,12 +256,12 @@ function handleDeletedPost(found) {
   });
 }
 
-const getStats = () => {
+const getStats = async () => {
   const now_ms = +new Date();
   const now_s = Math.round(now_ms / 1000);
   const currentStats = {
-    cached: postCache.size(),
-    oldest: Math.round((now_ms - postCache.oldest()) / 1000),
+    cached: await postCache.size(),
+    oldest: Math.round((now_ms - await postCache.oldest()) / 1000),
     hit_rate: deletedPostHit / (deletedPostHit + deletedPostMiss),
     clients: wss.clients.size,
   };
@@ -281,13 +281,13 @@ setInterval(() => {
 
 console.log('getting jetstream replay...');
 let lastReplayLog = +new Date();
-(function waitForReplay() {
+(async function waitForReplay() {
   if (replaying) {
     const now = +new Date;
     if ((now - lastReplayLog) > 2 * 1000) { // log replay progress every 2s
       lastReplayLog = now;
-      const cacheSize = postCache.size();
-      const minutesReplayed = Math.round((lastPostMs - postCache.oldest()) / 1000 / 60 * 10) / 10;
+      const cacheSize = await postCache.size();
+      const minutesReplayed = Math.round((lastPostMs - await postCache.oldest()) / 1000 / 60 * 10) / 10;
       console.log('replay', { cacheSize, minutesReplayed });
     }
     setTimeout(waitForReplay, 200);
