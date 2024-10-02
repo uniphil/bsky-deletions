@@ -30,7 +30,7 @@ primary_region = 'ewr'
     soft_limit = 500
 
 [[http_service.checks]]
-  grace_period = "45s"
+  grace_period = "8s"
   interval = "15s"
   method = "GET"
   timeout = "2s"
