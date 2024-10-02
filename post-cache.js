@@ -51,24 +51,24 @@ class PostCache {
 
     this.#dbTrim = this.#db.prepare(`
       with cutoff as (
-        select rowid
+        select t
           from posts
-         order by rowid desc -- should work for a pretty long time
+         order by t desc
          limit 1
         offset ?
       )
       delete from posts
-      where t < ? or rowid <= (select rowid from cutoff)
+      where t < ? or t <= (select t from cutoff)
     `);
 
     this.#dbCount = this.#db.prepare(
       'select count(rowid) as count from posts');
 
     this.#dbOldest = this.#db.prepare(
-      'select t from posts order by rowid limit 1');
+      'select t from posts order by t limit 1');
 
     this.#dbNewest = this.#db.prepare(
-      'select t from posts order by rowid desc limit 1');
+      'select t from posts order by t desc limit 1');
   }
 
   set(now, k, v) {
