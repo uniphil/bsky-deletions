@@ -16,10 +16,12 @@ test('the cache knows the age of things', () => {
   expect(cache.take(1, 'y')).toStrictEqual({ value: 'b', age: 0 });
 });
 
-test('the cache limits how many items it holds', () => {
+test('the cache limits how many items it holds after trimming', () => {
   const cache = new PostCache({ maxItems: 1 });
   cache.set(0, 'x', 'a');
   cache.set(0, 'y', 'b');
+  expect(cache.take(0, 'x')).toStrictEqual({ value: 'a', age: 0 });
+  cache.trim();
   expect(cache.take(0, 'x')).toBeUndefined();
   expect(cache.take(0, 'y')).toStrictEqual({ value: 'b', age: 0 });
 });
@@ -51,13 +53,15 @@ test('the cache reports its size', () => {
   expect(cache.size()).toBe(0);
 });
 
-test('the cache reports oldest member', () => {
+test('the cache reports oldest member after trimming', () => {
   const cache = new PostCache({ maxItems: 2 });
   expect(cache.oldest()).toBeUndefined();
   cache.set(0, 'x', 'a');
   cache.set(1, 'y', 'b');
   expect(cache.oldest()).toBe(0);
   cache.set(2, 'z', 'c');
+  expect(cache.oldest()).toBe(0);
+  cache.trim();
   expect(cache.oldest()).toBe(1);
 });
 

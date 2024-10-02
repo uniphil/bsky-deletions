@@ -73,34 +73,26 @@ class PostCache {
 
   set(now, k, v) {
     this.#dbSet.run(k, now, JSON.stringify(v));
-    this.#cleanup(now);
   }
 
   update(now, k, v) {
     this.#dbUpdate.run(JSON.stringify(v), k);
-    this.#cleanup(now);
   }
 
   take(now, k) {
-    let rv;
-    let rec = this.#dbTake.get(k);
-    if (rec !== undefined) {
-      if (rec.t >= now - this.#maxAge) {
-        let value;
-        try {
-          value = JSON.parse(rec.data);
-        } catch (e) {
-          console.error('failed to parse json data from cache db', rec);
-          return;
-        }
-        rv = {
-          value: JSON.parse(rec.data),
-          age: now - rec.t,
-        };
-      }
+    const rec = this.#dbTake.get(k);
+    if (!rec || rec.t < now - this.#maxAge) return;
+    let value;
+    try {
+      value = JSON.parse(rec.data);
+    } catch (e) {
+      console.error('failed to parse json data from cache db', rec);
+      return;
     }
-    this.#cleanup(now);
-    return rv;
+    return {
+      value: JSON.parse(rec.data),
+      age: now - rec.t,
+    };
   }
 
   size() {
@@ -115,7 +107,7 @@ class PostCache {
     return this.#dbNewest.get()?.t;
   }
 
-  #cleanup(now) {
+  trim(now) {
     this.#dbTrim.run(this.#maxItems, now - this.#maxAge);
   }
 }

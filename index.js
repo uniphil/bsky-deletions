@@ -272,7 +272,7 @@ const getStats = () => {
   return currentStats;
 }
 
-setInterval(() => {
+setInterval(function updatePresence() {
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({
@@ -282,6 +282,10 @@ setInterval(() => {
     }
   });
 }, 12000);
+
+setInterval(function trimCache() {
+  postCache.trim();
+}, 2000);
 
 console.log('getting jetstream replay...');
 let lastReplayLog = +new Date();
