@@ -60,3 +60,13 @@ test('the cache reports oldest member', () => {
   cache.set(2, 'z', 'c');
   expect(cache.oldest()).toBe(1);
 });
+
+test('the cache reports newest member', () => {
+  const cache = new PostCache({ maxItems: 2 });
+  expect(cache.newest()).toBeUndefined();
+  cache.set(0, 'x', 'a');
+  cache.set(1, 'y', 'b');
+  expect(cache.newest()).toBe(1);
+  cache.set(2, 'z', 'c');
+  expect(cache.newest()).toBe(2);
+});

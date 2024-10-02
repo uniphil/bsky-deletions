@@ -17,6 +17,7 @@ class PostCache {
   #dbTrim;
   #dbCount;
   #dbOldest;
+  #dbNewest;
 
   constructor({
     maxItems = DEFAULT_MAX_ITEMS,
@@ -40,7 +41,7 @@ class PostCache {
     `);
 
     this.#dbSet = this.#db.prepare(
-      'insert into posts values (?, ?, ?)');
+      'insert into posts values (?, ?, ?) on conflict do nothing');
 
     this.#dbUpdate = this.#db.prepare(
       'update posts set data = ? where rkey = ?');
@@ -65,6 +66,9 @@ class PostCache {
 
     this.#dbOldest = this.#db.prepare(
       'select t from posts order by rowid limit 1');
+
+    this.#dbNewest = this.#db.prepare(
+      'select t from posts order by rowid desc limit 1');
   }
 
   set(now, k, v) {
@@ -105,6 +109,10 @@ class PostCache {
 
   oldest() {
     return this.#dbOldest.get()?.t;
+  }
+
+  newest() {
+    return this.#dbNewest.get()?.t;
   }
 
   #cleanup(now) {

@@ -7,14 +7,18 @@ import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
 
-const postCache = new PostCache({ maxItems: 1000000 });
+const sqliteDb = process.env.NODE_ENV === 'production' ? '/data/posts-cache.db' : 'posts-cache.db';
+const postCache = new PostCache({ maxItems: 1000000, sqliteDb });
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
 let replaying = true;
-const REPLAY_MINUTES = (process.env.NODE_ENV === 'production') ? 30 : 5;
 const REPLAY_COMPLETE_IF_WITHIN_S = 30; // consider replay complete if the last post is within this many seconds ofnow
-let lastPostMs = +new Date() - REPLAY_MINUTES * 60 * 1000; // begin startup replay from
+
+let lastPostMs = postCache.newest() ?? (+new Date() -30 * 60 * 1000);
+if (process.env.NODE_ENV !== 'production') {
+  lastPostMs = Math.max(lastPostMs, +new Date() - 5 * 60 * 1000); // only up to 5mins replay in dev
+}
 
 let preloadedIndexHtmlContent;
 if (process.env.NODE_ENV === 'production') {
