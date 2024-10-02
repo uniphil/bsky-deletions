@@ -7,7 +7,7 @@ import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
 
-const postCache = new PostCache(1000000);
+const postCache = new PostCache({ maxItems: 1000000 });
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;

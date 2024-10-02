@@ -7,7 +7,10 @@ class PostCache {
   #maxItems;
   #maxAge;
 
-  constructor(maxItems=DEFAULT_MAX_ITEMS, maxAge=DEFAULT_MAX_AGE_MS) {
+  constructor({
+    maxItems = DEFAULT_MAX_ITEMS,
+    maxAge = DEFAULT_MAX_AGE_MS,
+  } = {}) {
     this.#map = new Map();
     this.#maxItems = maxItems;
     this.#maxAge = maxAge;

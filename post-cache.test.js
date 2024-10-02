@@ -17,7 +17,7 @@ test('the cache knows the age of things', () => {
 });
 
 test('the cache limits how many items it holds', () => {
-  const cache = new PostCache(1);
+  const cache = new PostCache({ maxItems: 1 });
   cache.set(0, 'x', 'a');
   cache.set(0, 'y', 'b');
   expect(cache.take(0, 'x')).toBeUndefined();
@@ -25,7 +25,7 @@ test('the cache limits how many items it holds', () => {
 });
 
 test('the cache removes too-old items', () => {
-  const cache = new PostCache(10000, 1);
+  const cache = new PostCache({ maxItems: 10000, maxAge: 1 });
   cache.set(0, 'x', 'a');
   cache.set(1, 'y', 'b');
   cache.set(2, 'z', 'c');
@@ -52,7 +52,7 @@ test('the cache reports its size', () => {
 });
 
 test('the cache reports oldest member', () => {
-  const cache = new PostCache(2);
+  const cache = new PostCache({ maxItems: 2 });
   expect(cache.oldest()).toBeUndefined();
   cache.set(0, 'x', 'a');
   cache.set(1, 'y', 'b');
