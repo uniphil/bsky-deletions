@@ -25,7 +25,7 @@ test('the cache limits how many items it holds', () => {
 });
 
 test('the cache removes too-old items', () => {
-  const cache = new PostCache({ maxItems: 10000, maxAge: 1 });
+  const cache = new PostCache({ maxAge: 1 });
   cache.set(0, 'x', 'a');
   cache.set(1, 'y', 'b');
   cache.set(2, 'z', 'c');
