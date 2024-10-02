@@ -13,12 +13,12 @@ class PostCache {
     this.#maxAge = maxAge;
   }
 
-  async set(now, k, v) {
+  set(now, k, v) {
     this.#map.set(k, { v, t: now });
     this.#cleanup(now);
   }
 
-  async update(now, k, v) {
+  update(now, k, v) {
     const found = this.#map.get(k);
     if (found !== undefined) {
       found.v = v;
@@ -26,7 +26,7 @@ class PostCache {
     this.#cleanup(now);
   }
 
-  async take(now, k) {
+  take(now, k) {
     let rv;
     let rec = this.#map.get(k);
     if (rec !== undefined) {
@@ -42,11 +42,11 @@ class PostCache {
     return rv;
   }
 
-  async size() {
+  size() {
     return this.#map.size;
   }
 
-  async oldest() {
+  oldest() {
     return this.#map.values().next().value?.t;
   }
 
