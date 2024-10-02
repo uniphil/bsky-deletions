@@ -5,7 +5,6 @@ const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_SQLITE_DB = ':memory:';
 
 
-
 class PostCache {
   #maxItems;
   #maxAge;
@@ -41,7 +40,7 @@ class PostCache {
     `);
 
     this.#dbSet = this.#db.prepare(
-      'insert into posts values (?, ?, ?) on conflict do nothing');
+      'insert or ignore into posts values (?, ?, ?)');
 
     this.#dbUpdate = this.#db.prepare(
       'update posts set data = ? where rkey = ?');
@@ -72,7 +71,8 @@ class PostCache {
   }
 
   set(now, k, v) {
-    this.#dbSet.run(k, now, JSON.stringify(v));
+    const { changes } = this.#dbSet.run(k, now, JSON.stringify(v));
+    return changes > 0;
   }
 
   update(now, k, v) {

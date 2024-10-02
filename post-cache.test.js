@@ -74,3 +74,9 @@ test('the cache reports newest member', () => {
   cache.set(2, 'z', 'c');
   expect(cache.newest()).toBe(2);
 });
+
+test('the cache indicates whether a set resulted in an insert', () => {
+  const cache = new PostCache({ maxItems: 2 });
+  expect(cache.set(0, 'x', 'a')).toBe(true);
+  expect(cache.set(0, 'x', 'a')).toBe(false);
+});

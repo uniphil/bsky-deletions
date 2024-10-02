@@ -7,8 +7,11 @@ import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
 
-const sqliteDb = process.env.NODE_ENV === 'production' ? '/data/posts-cache.db' : 'posts-cache.db';
-const postCache = new PostCache({ maxItems: 1000000, sqliteDb });
+const postCache = new PostCache({
+  maxItems: 10 * 1000000,
+  maxAge: 5 * 24 * 60 * 60 * 1000, // 5 days
+  sqliteDb: process.env.NODE_ENV === 'production' ? '/data/posts-cache.db' : 'posts-cache.db',
+});
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
@@ -49,7 +52,7 @@ const postAge = new Histogram({
   name: 'post_deleted_age',
   help: 'Histogram of ages of deleted posts, cache misses excluded',
   labelNames: ['target'],
-  buckets: exponentialBuckets(20, 1.48, 20).map(Math.round),
+  buckets: exponentialBuckets(20, 1.48, 24).map(Math.round),
 });
 postAge.zero({ target: null });
 postAge.zero({ target: 'reply' });
@@ -66,7 +69,7 @@ const jetstreamConnect = (n = 0) => {
     console.log('jetstream connected.');
   });
   jws.on('error', e => {
-    console.error(e);
+    console.error('jetstream error', e);
     jws.close();
   });
   jws.on('close', e => {
