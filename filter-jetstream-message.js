@@ -35,7 +35,7 @@ const redact = (text, facets) => {
 const filter = contents => {
   if (contents.type !== 'com') return;
   const t = Math.floor(contents.time_us / 1000);
-  const { type: commitType, rkey, record } = contents.commit;
+  const { type: commitType, rkey, record } = contents.commit ?? {};
   if (['c', 'u'].includes(commitType)) {
     const { text, embed, facets, langs, reply } = record;
     let type;
