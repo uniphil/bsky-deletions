@@ -16,16 +16,18 @@ test('the cache knows the age of things', () => {
   expect(cache.take(1, 'y')).toStrictEqual({ value: 'b', age: 0 });
 });
 
-test('the cache limits how many items it holds', () => {
-  const cache = new PostCache(1);
+test('the cache limits how many items it holds after trimming', () => {
+  const cache = new PostCache({ maxItems: 1 });
   cache.set(0, 'x', 'a');
   cache.set(0, 'y', 'b');
+  expect(cache.take(0, 'x')).toStrictEqual({ value: 'a', age: 0 });
+  cache.trim();
   expect(cache.take(0, 'x')).toBeUndefined();
   expect(cache.take(0, 'y')).toStrictEqual({ value: 'b', age: 0 });
 });
 
 test('the cache removes too-old items', () => {
-  const cache = new PostCache(10000, 1);
+  const cache = new PostCache({ maxAge: 1 });
   cache.set(0, 'x', 'a');
   cache.set(1, 'y', 'b');
   cache.set(2, 'z', 'c');
@@ -51,12 +53,30 @@ test('the cache reports its size', () => {
   expect(cache.size()).toBe(0);
 });
 
-test('the cache reports oldest member', () => {
-  const cache = new PostCache(2);
+test('the cache reports oldest member after trimming', () => {
+  const cache = new PostCache({ maxItems: 2 });
   expect(cache.oldest()).toBeUndefined();
   cache.set(0, 'x', 'a');
   cache.set(1, 'y', 'b');
   expect(cache.oldest()).toBe(0);
   cache.set(2, 'z', 'c');
+  expect(cache.oldest()).toBe(0);
+  cache.trim();
   expect(cache.oldest()).toBe(1);
+});
+
+test('the cache reports newest member', () => {
+  const cache = new PostCache({ maxItems: 2 });
+  expect(cache.newest()).toBeUndefined();
+  cache.set(0, 'x', 'a');
+  cache.set(1, 'y', 'b');
+  expect(cache.newest()).toBe(1);
+  cache.set(2, 'z', 'c');
+  expect(cache.newest()).toBe(2);
+});
+
+test('the cache indicates whether a set resulted in an insert', () => {
+  const cache = new PostCache({ maxItems: 2 });
+  expect(cache.set(0, 'x', 'a')).toBe(true);
+  expect(cache.set(0, 'x', 'a')).toBe(false);
 });

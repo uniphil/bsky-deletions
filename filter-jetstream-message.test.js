@@ -174,6 +174,14 @@ test('the filter should normalize the post language', () => {
   });
 });
 
+test('the filter should drop commits with a commit prop', () => {
+  expect(filter({
+    "did": "did:plc:xxxxxxxxx",
+    "time_us": 1711111116933838,
+    "type": "com",
+  })).toBeUndefined();
+});
+
 test('the redactor should redact link text', () => {
   expect(redact(
     "【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU\n\nhttps://www.example.com/0123456789\n\n【BTS】Rebuilding the fantastical realm for an unforgettable experience!!! | Hero is Back | YOUKU",

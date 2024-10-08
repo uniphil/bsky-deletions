@@ -8,8 +8,10 @@ primary_region = 'ewr'
 
 [build]
 
-[deploy]
-  strategy = "bluegreen"
+[mounts]
+  source = "bsky_deletions_cache"
+  destination = "/data"
+  initial_size = "10gb"
 
 [metrics]
   port = 3000
@@ -28,7 +30,7 @@ primary_region = 'ewr'
     soft_limit = 500
 
 [[http_service.checks]]
-  grace_period = "45s"
+  grace_period = "8s"
   interval = "15s"
   method = "GET"
   timeout = "2s"

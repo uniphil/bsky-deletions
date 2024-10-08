@@ -7,14 +7,21 @@ import PostCache from './post-cache.js';
 import LangTracker from './lang-tracker.js';
 import filterJetstreamMessage from './filter-jetstream-message.js';
 
-const postCache = new PostCache(1000000);
+const postCache = new PostCache({
+  maxItems: 10 * 1000000,
+  maxAge: 5 * 24 * 60 * 60 * 1000, // 5 days
+  sqliteDb: process.env.NODE_ENV === 'production' ? '/data/posts-cache.db' : 'posts-cache.db',
+});
 const langTracker = new LangTracker();
 let deletedPostHit = 0;
 let deletedPostMiss = 0;
 let replaying = true;
-const REPLAY_MINUTES = (process.env.NODE_ENV === 'production') ? 30 : 5;
 const REPLAY_COMPLETE_IF_WITHIN_S = 30; // consider replay complete if the last post is within this many seconds ofnow
-let lastPostMs = +new Date() - REPLAY_MINUTES * 60 * 1000; // begin startup replay from
+
+let lastPostMs = postCache.newest() ?? (+new Date() -30 * 60 * 1000);
+if (process.env.NODE_ENV !== 'production') {
+  lastPostMs = Math.max(lastPostMs, +new Date() - 5 * 60 * 1000); // only up to 5mins replay in dev
+}
 
 let preloadedIndexHtmlContent;
 if (process.env.NODE_ENV === 'production') {
@@ -45,7 +52,7 @@ const postAge = new Histogram({
   name: 'post_deleted_age',
   help: 'Histogram of ages of deleted posts, cache misses excluded',
   labelNames: ['target'],
-  buckets: exponentialBuckets(20, 1.48, 20).map(Math.round),
+  buckets: exponentialBuckets(20, 1.48, 24).map(Math.round),
 });
 postAge.zero({ target: null });
 postAge.zero({ target: 'reply' });
@@ -62,7 +69,7 @@ const jetstreamConnect = (n = 0) => {
     console.log('jetstream connected.');
   });
   jws.on('error', e => {
-    console.error(e);
+    console.error('jetstream error', e);
     jws.close();
   });
   jws.on('close', e => {
@@ -268,7 +275,7 @@ const getStats = () => {
   return currentStats;
 }
 
-setInterval(() => {
+setInterval(function updatePresence() {
   wss.clients.forEach(function each(client) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({
@@ -278,6 +285,10 @@ setInterval(() => {
     }
   });
 }, 12000);
+
+setInterval(function trimCache() {
+  postCache.trim();
+}, 2000);
 
 console.log('getting jetstream replay...');
 let lastReplayLog = +new Date();
