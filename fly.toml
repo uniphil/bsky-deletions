@@ -17,6 +17,9 @@ primary_region = 'ewr'
   port = 3000
   path = "/metrics"
 
+[env]
+  ENV = "production"
+
 [http_service]
   internal_port = 3000
   force_https = true
