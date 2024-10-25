@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-// "github.com/gorilla/websocket"
-
 //go:embed *.html
 var resources embed.FS
 

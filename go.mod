@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bluesky-social/indigo v0.0.0-20241008040750-06bacb465af7 // indirect
-	github.com/bluesky-social/jetstream v0.0.0-20241010171125-dc1735204c48 // indirect
+	github.com/bluesky-social/jetstream v0.0.0-20241022030937-75fdbaa83787 // indirect
 	github.com/carlmjohnson/versioninfo v0.22.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
