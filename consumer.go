@@ -17,8 +17,8 @@ import (
 )
 
 type Consumer struct {
-	DB      *pebble.DB
-	outFeed chan PersistedPost
+	DB          *pebble.DB
+	deletedFeed chan PersistedPost
 }
 
 type PostTargetType string
@@ -49,7 +49,7 @@ type PersistedPost struct {
 	Target *PostTargetType
 }
 
-func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger, outFeed chan PersistedPost) {
+func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) chan PersistedPost {
 	wsUrl := "wss://jetstream1.us-east.bsky.network/subscribe"
 
 	config := client.DefaultClientConfig()
@@ -90,9 +90,11 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger, outFe
 		log.Fatalf("failed to close iterator: %s", err)
 	}
 
+	deletedFeed := make(chan PersistedPost, 30)
+
 	h := &PostHandler{
-		DB:      db,
-		OutFeed: outFeed,
+		DB:          db,
+		DeletedFeed: deletedFeed,
 	}
 
 	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
@@ -131,11 +133,12 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger, outFe
 		slog.Info("gbyee")
 	}()
 
+	return deletedFeed
 }
 
 type PostHandler struct {
-	DB      *pebble.DB
-	OutFeed chan PersistedPost
+	DB          *pebble.DB
+	DeletedFeed chan PersistedPost
 }
 
 func PostKey(event *models.Event) ([]byte, error) {
@@ -250,7 +253,11 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 			}
 		}
 		if post != nil {
-			h.OutFeed <- *post
+			select {
+			case h.DeletedFeed <- *post:
+			default:
+				fmt.Printf("dropping deleted post because the channel is full")
+			}
 		}
 	}
 	return nil

@@ -240,7 +240,9 @@ const connect = langs => {
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsParams = new URLSearchParams();
   langs.forEach(lang => wsParams.append('lang', lang));
-  ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
+  const wsUrl = `${wsProto}//${window.location.host}/?${wsParams}`;
+  console.info('ws connect', wsUrl);
+  ws = new WebSocket(wsUrl);
   ws.onopen = petWatchdog;
   ws.onclose = () => oops(1);
   ws.onerror = e => { ws.close(); console.error(e) };

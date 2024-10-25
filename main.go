@@ -30,8 +30,9 @@ func main() {
 	})))
 	logger := slog.Default()
 
-	deletedFeed := make(chan PersistedPost)
+	// deletedFeed := make(chan PersistedPost, 30)
 
-	Consume(ctx, env, dbPath, logger, deletedFeed)
+	deletedFeed := Consume(ctx, env, dbPath, logger)
+
 	Serve(env, port, deletedFeed)
 }

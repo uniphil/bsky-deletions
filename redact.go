@@ -15,8 +15,7 @@ func isRedactable(facet apibsky.RichtextFacet) *redactable {
 	if facet.Index == nil {
 		return nil
 	}
-	for j := range facet.Features {
-		feat := facet.Features[j]
+	for _, feat := range facet.Features {
 		if feat == nil {
 			continue
 		}
@@ -50,8 +49,7 @@ func Redact(text string, facets []*apibsky.RichtextFacet) string {
 
 	// 0. discard facets we don't care about
 	redactions := []redactable{}
-	for i := range allFacets {
-		facet := allFacets[i]
+	for _, facet := range allFacets {
 		if facet == nil {
 			continue
 		}
@@ -65,8 +63,7 @@ func Redact(text string, facets []*apibsky.RichtextFacet) string {
 		return redactions[i].index.ByteStart < redactions[j].index.ByteStart
 	})
 
-	for i := range redactions {
-		redaction := redactions[i]
+	for _, redaction := range redactions {
 		// 2. discard any facets that overlap eachother
 		if redaction.index.ByteStart < lastEnd {
 			continue
@@ -95,8 +92,8 @@ func Redact(text string, facets []*apibsky.RichtextFacet) string {
 func NormalizeLangs(langs []string) []string {
 	normalized := []string{}
 	seen := map[string]bool{}
-	for i := range langs {
-		before, _, _ := strings.Cut(langs[i], "-")
+	for _, lang := range langs {
+		before, _, _ := strings.Cut(lang, "-")
 		k := strings.ToLower(before)
 		if !seen[k] {
 			normalized = append(normalized, k)
