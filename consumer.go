@@ -105,25 +105,16 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger, outFe
 
 	// Every 5 seconds print the events read and bytes read and average event size
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		statsTicker := time.NewTicker(5 * time.Second)
+		trimTicker := time.NewTicker(8 * time.Second)
 		for {
 			select {
-			case <-ticker.C:
+			case <-statsTicker.C:
 				eventsRead := c.EventsRead.Load()
 				bytesRead := c.BytesRead.Load()
 				avgEventSize := bytesRead / eventsRead
 				logger.Info("stats", "events_read", eventsRead, "bytes_read", bytesRead, "avg_event_size", avgEventSize)
-			}
-		}
-	}()
-
-	// trim db
-	go func() {
-		ticker := time.NewTicker(8 * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-				// Trim the database
+			case <-trimTicker.C:
 				if err := h.TrimEvents(ctx); err != nil {
 					logger.Error("failed to trim events", "error", err)
 				}
@@ -301,11 +292,8 @@ func (h *PostHandler) TrimEvents(ctx context.Context) error {
 	// Keys are stored as strings of the event time in microseconds
 	// We can range delete events older than the event TTL
 	trimUntil := time.Now().Add(-maxPostRetention)
-	log.Printf("trimUntil?? %s mpr: %s\n", time.Since(trimUntil), maxPostRetention)
 	trimUntilRkey := syntax.NewTID(trimUntil.UnixMicro(), 0)
 	trimKey := []byte(trimUntilRkey.String())
-	watTid := syntax.TID(trimUntilRkey)
-	log.Printf("trimkey since: %s\n", time.Since(watTid.Time()))
 
 	iter, err := h.DB.NewIter(nil)
 	if err != nil {
@@ -316,22 +304,16 @@ func (h *PostHandler) TrimEvents(ctx context.Context) error {
 		if err := json.Unmarshal(iter.Value(), &p); err != nil {
 			log.Fatalf("failed to read latest entry: %#v", err)
 		}
-		dt := time.Since(time.UnixMicro(p.TimeUS))
-		log.Printf("earliest ts before: %s, k: %s\n", dt, iter.Key())
 	}
 	if err := iter.Close(); err != nil {
 		return err
 	}
-
-	log.Printf("trimming until %s\n", trimUntilRkey)
 
 	// Delete all numeric keys older than the trim key
 	if err := h.DB.DeleteRange([]byte("0"), trimKey, pebble.Sync); err != nil {
 		log.Printf("no, bad, failed to delete %s", err)
 		return fmt.Errorf("failed to delete old events: %#v", err)
 	}
-
-	log.Printf("ok so it did delete...")
 
 	iter, err = h.DB.NewIter(nil)
 	if err != nil {

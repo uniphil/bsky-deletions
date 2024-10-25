@@ -27,18 +27,22 @@ type Server struct {
 
 func (s Server) hello(w http.ResponseWriter, r *http.Request) {
 
-	_seenLangs := map[string]bool{}
+	seenLangs := map[string]bool{}
 	langs := []*string{}
 	acceptHeaderValue := r.Header.Get("Accept-Language")
 	for _, lang := range strings.Split(acceptHeaderValue, ",") {
 		var l = strings.TrimSpace(lang)
 		l, _, _ = strings.Cut(l, ";")
 		l, _, _ = strings.Cut(l, "-")
-		if !_seenLangs[l] {
+		if !seenLangs[l] {
 			langs = append(langs, &l)
-			_seenLangs[l] = true
+			seenLangs[l] = true
 		}
 	}
+
+	w.Header().Add("Content-Type", "text/html")
+	w.Header().Add("Cache-Control", "public, max-age=300, immutable")
+	w.Header().Add("Vary", "accept-language")
 
 	t.ExecuteTemplate(w, "index.html", IndexTemplateData{
 		KnownLangs:   []string{"en", "b", "c"},
