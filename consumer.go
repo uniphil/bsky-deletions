@@ -28,6 +28,20 @@ const (
 	QuoteTarget PostTargetType = "quote"
 )
 
+func MustParseDuration(d string) time.Duration {
+	parsed, err := time.ParseDuration(d)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse duration '%s': %#v", d, err))
+	}
+	return parsed
+}
+
+var ( // gross: duration can't be const
+	maxRkeyTimeError time.Duration = MustParseDuration("5m")
+	maxRkeySince     time.Duration = MustParseDuration("1h")
+	maxPostRetention time.Duration = MustParseDuration("24h") * 2
+)
+
 type PersistedPost struct {
 	TimeUS int64
 	Text   string
@@ -83,6 +97,7 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger, outFe
 
 	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
 
+	// TODO: does the client already handle reconnects?
 	c, err := client.NewClient(config, logger, scheduler)
 	if err != nil {
 		log.Fatalf("failed to create client: %#v", err)
@@ -174,18 +189,6 @@ func (h *PostHandler) handlePersistPost(key []byte, post apibsky.FeedPost, time 
 
 	return nil
 }
-
-var maxRkeyTimeError time.Duration
-var maxRkeySince time.Duration
-var maxPostRetention time.Duration
-
-func init() {
-	maxRkeyTimeError, _ = time.ParseDuration("5m")
-	maxRkeySince, _ = time.ParseDuration("1h")
-	oneDay, _ := time.ParseDuration("24h")
-	maxPostRetention = oneDay * 2
-}
-
 
 func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) error {
 

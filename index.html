@@ -278,7 +278,7 @@ const petWatchdog = () => {
   clearTimeout(reconTimer);
   wdt = setTimeout(oops, DISCONNECT_TIMEOUT);
 };
-let initialLangs = [[BROWSER_LANGS]];
+let initialLangs = {{ .BrowserLangs }};
 try { initialLangs = JSON.parse(localStorage.getItem('langs')) || initialLangs; }
 catch (e) { console.warn('could not load saved langs', e) }
 connect(initialLangs);
@@ -362,7 +362,7 @@ function showWaiting() {
 }
 
 /// lang selector
-[[KNOWN_LANGS]].forEach(lang => {
+{{ .KnownLangs }}.forEach(lang => {
   const langEl = document.createElement('label');
   langSelectorForm.appendChild(langEl);
   const langBox = document.createElement('input');

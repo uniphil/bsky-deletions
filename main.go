@@ -2,18 +2,9 @@ package main
 
 import (
 	"context"
-	"embed"
-	"html/template"
-	"log"
 	"log/slog"
-	"net/http"
 	"os"
 )
-
-//go:embed *.html
-var resources embed.FS
-
-var t = template.Must(template.ParseFS(resources, "*.html"))
 
 func main() {
 	env := os.Getenv("ENV")
@@ -42,22 +33,5 @@ func main() {
 	deletedFeed := make(chan PersistedPost)
 
 	Consume(ctx, env, dbPath, logger, deletedFeed)
-
-	go func() {
-		// for m := range deletedFeed {
-		for _ = range deletedFeed {
-			// log.Println("ayyy", m.Text)
-		}
-	}()
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		data := map[string]string{
-			"Region": os.Getenv("FLY_REGION"),
-		}
-
-		t.ExecuteTemplate(w, "index.html", data)
-	})
-
-	log.Println("listening on", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	Serve(env, port, deletedFeed)
 }
