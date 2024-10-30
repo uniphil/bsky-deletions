@@ -23,7 +23,7 @@ type IndexTemplateData struct {
 }
 
 type Server struct {
-	newClientFeed chan websocket.Conn
+	newObserver chan chan PersistedPost
 }
 
 func (s Server) index(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +62,15 @@ func (s Server) wsConnect(w http.ResponseWriter, r *http.Request) {
 		log.Println("oops, conn is nil?")
 		return
 	}
-	s.newClientFeed <- *c
+	receiver := make(chan PersistedPost, 5)
+	s.newObserver <- receiver
+
+	go func() {
+		for post := range receiver {
+			log.Println("should send to client", post)
+		}
+	}()
+
 	c.Close(websocket.StatusNormalClosure, "blah")
 }
 
@@ -88,7 +96,7 @@ func (s Server) oops(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Server) broadcast(deletedFeed chan PersistedPost) {
-	observers := map[*websocket.Conn]bool{}
+	var observers = []chan PersistedPost{}
 	observersCountTicker := time.NewTicker(3 * time.Second)
 	for {
 		select {
@@ -97,11 +105,16 @@ func (s Server) broadcast(deletedFeed chan PersistedPost) {
 		case post := <-deletedFeed:
 			log.Println("deleted post", post)
 			for _, c := range observers {
+				select {
+				case c <- post:
+				default:
+					log.Println("should drop client", c)
+				}
 				log.Println("send to", c)
 			}
-		case conn := <-s.newClientFeed:
-			log.Println("new client", conn)
-			observers[&conn] = true
+		case observer := <-s.newObserver:
+			log.Println("new client", observer)
+			observers = append(observers, observer)
 		}
 	}
 }
@@ -109,7 +122,7 @@ func (s Server) broadcast(deletedFeed chan PersistedPost) {
 func Serve(env, port string, deletedFeed chan PersistedPost) {
 
 	server := Server{
-		newClientFeed: make(chan websocket.Conn),
+		newObserver: make(chan chan PersistedPost),
 	}
 
 	router := http.NewServeMux()
