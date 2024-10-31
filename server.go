@@ -3,7 +3,7 @@ package main
 import (
 	"embed"
 	"encoding/json"
-	"github.com/coder/websocket"
+	"github.com/gorilla/websocket"
 	"html/template"
 	"io"
 	"log"
@@ -17,6 +17,11 @@ var resources embed.FS
 
 var t = template.Must(template.ParseFS(resources, "*.html"))
 
+var upgrader = websocket.Upgrader{
+	ReadBufferSize: 512,
+	WriteBufferSize: 1024,
+}
+
 type IndexTemplateData struct {
 	KnownLangs   []string
 	BrowserLangs []*string
@@ -24,6 +29,38 @@ type IndexTemplateData struct {
 
 type Server struct {
 	newObserver chan chan PersistedPost
+}
+
+type PostMessageValue struct {
+	Text string `json:"text"`
+	Target *string `json:"target"`
+}
+
+type PostMessagePost struct {
+	Value PostMessageValue `json:"value"`
+	// Age
+}
+
+type PostMessage struct {
+	Type string `json:"type"`
+	Post PostMessagePost `json:"post"`
+}
+
+func (p PersistedPost) toJson() ([]byte, error) {
+	message := PostMessage{
+		Type: "post",
+		Post: PostMessagePost{
+			Value: PostMessageValue{
+				Text: p.Text,
+				Target: nil,
+			},
+		},
+	}
+	data, err := json.Marshal(&message)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func (s Server) index(w http.ResponseWriter, r *http.Request) {
@@ -53,26 +90,78 @@ func (s Server) index(w http.ResponseWriter, r *http.Request) {
 
 func (s Server) wsConnect(w http.ResponseWriter, r *http.Request) {
 	log.Println("ws connect hiiiii")
-	c, err := websocket.Accept(w, r, nil)
+	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("failed to upgrade websocket connection", err)
 		return
 	}
-	if c == nil {
-		log.Println("oops, conn is nil?")
-		return
-	}
+
 	receiver := make(chan PersistedPost, 5)
+	pickLangs := make(chan []string)
 	s.newObserver <- receiver
-
-	go func() {
-		for post := range receiver {
-			log.Println("should send to client", post)
-		}
-	}()
-
-	c.Close(websocket.StatusNormalClosure, "blah")
+	go listen(*c, pickLangs)
+	go notify(*c, receiver, pickLangs)
 }
+
+func listen(c websocket.Conn, pickLangs chan []string) {
+	defer c.Close()
+	for {
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error: %v", err)
+			}
+			break
+		}
+		newLangs := struct{
+			Type string `json:"type"`
+			Langs []string `json:"langs"`
+		}{}
+		err = json.Unmarshal(message, &newLangs)
+		if err != nil {
+			log.Println("failed to decode client message", message)
+		}
+		if newLangs.Type != "setLangs" {
+			log.Println("unexpected client message type, ignoring", newLangs.Type)
+			continue
+		}
+		pickLangs <- newLangs.Langs
+	}
+}
+
+func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []string) {
+	defer func() {
+		c.Close()
+		close(receiver)
+	}()
+	var langs = []string{}
+	for {
+		select {
+		case post := <-receiver:
+			data, err := post.toJson()
+			if err != nil {
+				log.Println("could not serialize post", post)
+				continue
+			}
+			w, err := c.NextWriter(websocket.TextMessage)
+			if err != nil {
+				break
+			}
+			w.Write(data)
+			if len(langs) > 1 {
+				log.Println("sup")
+			}
+			if err := w.Close(); err != nil {
+				break
+			}
+		case newLangs := <-pickLangs:
+			langs = newLangs
+		default:
+			break
+		}
+	}
+}
+
 
 func (s Server) todo(w http.ResponseWriter, r *http.Request) {
 	log.Println("todo...")
@@ -96,7 +185,7 @@ func (s Server) oops(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s Server) broadcast(deletedFeed chan PersistedPost) {
-	var observers = []chan PersistedPost{}
+	observers := make(map[chan PersistedPost]bool)
 	observersCountTicker := time.NewTicker(3 * time.Second)
 	for {
 		select {
@@ -104,17 +193,21 @@ func (s Server) broadcast(deletedFeed chan PersistedPost) {
 			log.Println("tick: notify observers", len(observers))
 		case post := <-deletedFeed:
 			log.Println("deleted post", post)
-			for _, c := range observers {
+			var toDelete = []chan PersistedPost{}
+			for c := range observers {
 				select {
 				case c <- post:
 				default:
 					log.Println("should drop client", c)
+					toDelete = append(toDelete, c)
 				}
-				log.Println("send to", c)
 			}
-		case observer := <-s.newObserver:
-			log.Println("new client", observer)
-			observers = append(observers, observer)
+			for _, c := range toDelete {
+				delete(observers, c)
+			}
+		case c := <-s.newObserver:
+			log.Println("new client", c)
+			observers[c] = true
 		}
 	}
 }
