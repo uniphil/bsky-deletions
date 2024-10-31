@@ -18,7 +18,7 @@ var resources embed.FS
 var t = template.Must(template.ParseFS(resources, "*.html"))
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize: 512,
+	ReadBufferSize:  512,
 	WriteBufferSize: 1024,
 }
 
@@ -32,18 +32,23 @@ type Server struct {
 }
 
 type PostMessageValue struct {
-	Text string `json:"text"`
+	Text   string          `json:"text"`
 	Target *PostTargetType `json:"target"`
 }
 
 type PostMessagePost struct {
 	Value PostMessageValue `json:"value"`
-	Age int64 `json:"age"`
+	Age   int64            `json:"age"`
 }
 
 type PostMessage struct {
-	Type string `json:"type"`
+	Type string          `json:"type"`
 	Post PostMessagePost `json:"post"`
+}
+
+type ObserversMessage struct {
+	Type      string `json:"type"`
+	Observers int    `json:"observers"`
 }
 
 func (p PersistedPost) toJson(t time.Time) ([]byte, error) {
@@ -53,7 +58,7 @@ func (p PersistedPost) toJson(t time.Time) ([]byte, error) {
 		Post: PostMessagePost{
 			Age: age,
 			Value: PostMessageValue{
-				Text: p.Text,
+				Text:   p.Text,
 				Target: p.Target,
 			},
 		},
@@ -115,8 +120,8 @@ func listen(c websocket.Conn, pickLangs chan []string) {
 			}
 			break
 		}
-		newLangs := struct{
-			Type string `json:"type"`
+		newLangs := struct {
+			Type  string   `json:"type"`
 			Langs []string `json:"langs"`
 		}{}
 		err = json.Unmarshal(message, &newLangs)
@@ -163,7 +168,6 @@ func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []stri
 		}
 	}
 }
-
 
 func (s Server) todo(w http.ResponseWriter, r *http.Request) {
 	log.Println("todo...")
