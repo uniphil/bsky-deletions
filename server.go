@@ -33,12 +33,12 @@ type Server struct {
 
 type PostMessageValue struct {
 	Text string `json:"text"`
-	Target *string `json:"target"`
+	Target *PostTargetType `json:"target"`
 }
 
 type PostMessagePost struct {
 	Value PostMessageValue `json:"value"`
-	// Age
+	Age int64 `json:"age"`
 }
 
 type PostMessage struct {
@@ -46,13 +46,15 @@ type PostMessage struct {
 	Post PostMessagePost `json:"post"`
 }
 
-func (p PersistedPost) toJson() ([]byte, error) {
+func (p PersistedPost) toJson(t time.Time) ([]byte, error) {
+	age := (t.UnixMicro() - p.TimeUS) / 1000
 	message := PostMessage{
 		Type: "post",
 		Post: PostMessagePost{
+			Age: age,
 			Value: PostMessageValue{
 				Text: p.Text,
-				Target: nil,
+				Target: p.Target,
 			},
 		},
 	}
@@ -138,7 +140,7 @@ func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []stri
 	for {
 		select {
 		case post := <-receiver:
-			data, err := post.toJson()
+			data, err := post.toJson(time.Now())
 			if err != nil {
 				log.Println("could not serialize post", post)
 				continue
