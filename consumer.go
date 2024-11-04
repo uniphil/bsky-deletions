@@ -142,7 +142,7 @@ type PostHandler struct {
 }
 
 func PostKey(event *models.Event) ([]byte, error) {
-	if event.EventType == models.EventCommit && event.Commit != nil && event.Commit.Collection == "app.bsky.feed.post" {
+	if event.Kind == models.EventKindCommit && event.Commit != nil && event.Commit.Collection == "app.bsky.feed.post" {
 		return []byte(fmt.Sprintf("%s_%s", event.Commit.RKey, event.Did)), nil
 	} else {
 		return nil, fmt.Errorf("failed to generate key for persisting event: not a valid bsky post commit event")
@@ -186,14 +186,14 @@ func (h *PostHandler) handlePersistPost(key []byte, post apibsky.FeedPost, time 
 
 func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) error {
 
-	if !(event.EventType == models.EventCommit &&
+	if !(event.Kind == models.EventKindCommit &&
 		event.Commit != nil &&
 		event.Commit.Collection == "app.bsky.feed.post") {
 		// ignore non-post commits
 		return nil
 	}
 
-	if event.Commit.OpType == models.CommitCreateRecord {
+	if event.Commit.Operation == models.CommitOperationCreate {
 		parsed, err := syntax.ParseTID(event.Commit.RKey)
 		if err != nil {
 			fmt.Printf("failed to parse rkey %#v to TID, ignoring event.\n", err)
@@ -217,14 +217,14 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 
 	key := []byte(fmt.Sprintf("%s_%s", event.Commit.RKey, event.Did))
 
-	if event.Commit.OpType == models.CommitCreateRecord || event.Commit.OpType == models.CommitUpdateRecord {
+	if event.Commit.Operation == models.CommitOperationCreate || event.Commit.Operation == models.CommitOperationUpdate {
 		var post apibsky.FeedPost
 		if err := json.Unmarshal(event.Commit.Record, &post); err != nil {
 			return fmt.Errorf("failed to unmarshal post: %#v", err)
 		}
 
 		postTime := event.TimeUS
-		if event.Commit.OpType == models.CommitUpdateRecord {
+		if event.Commit.Operation == models.CommitOperationUpdate {
 			existing, err := h.TakeEvent(key)
 			if err != nil {
 				if err == pebble.ErrNotFound {
@@ -242,7 +242,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 		}
 
 		return h.handlePersistPost(key, post, postTime)
-	} else if event.Commit.OpType == models.CommitDeleteRecord {
+	} else if event.Commit.Operation == models.CommitOperationDelete {
 		post, err := h.TakeEvent(key)
 		if err != nil {
 			if err == pebble.ErrNotFound {

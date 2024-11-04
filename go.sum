@@ -14,6 +14,8 @@ github.com/bluesky-social/jetstream v0.0.0-20241010171125-dc1735204c48 h1:fyj4CW
 github.com/bluesky-social/jetstream v0.0.0-20241010171125-dc1735204c48/go.mod h1:/dE2dmFell/m4zxgIbH3fkiqZ1obzr/ETj4RpgomgMs=
 github.com/bluesky-social/jetstream v0.0.0-20241022030937-75fdbaa83787 h1:T66YwYtPh9pXWd22vBqcggMcWGV8eopOatKqsHCb2m0=
 github.com/bluesky-social/jetstream v0.0.0-20241022030937-75fdbaa83787/go.mod h1:/dE2dmFell/m4zxgIbH3fkiqZ1obzr/ETj4RpgomgMs=
+github.com/bluesky-social/jetstream v0.0.0-20241031234625-0ab10bd041fe h1:jduuyDfsiwWrPiN7psqDehepl68uxQ4UYCIgoqb1D4o=
+github.com/bluesky-social/jetstream v0.0.0-20241031234625-0ab10bd041fe/go.mod h1:WiYEeyJSdUwqoaZ71KJSpTblemUCpwJfh5oVXplK6T4=
 github.com/carlmjohnson/versioninfo v0.22.5 h1:O00sjOLUAFxYQjlN/bzYTuZiS0y6fWDQjMRvwtKgwwc=
 github.com/carlmjohnson/versioninfo v0.22.5/go.mod h1:QT9mph3wcVfISUKd0i9sZfVrPviHuSF+cUtLjm2WSf8=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
