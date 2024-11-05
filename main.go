@@ -30,9 +30,7 @@ func main() {
 	})))
 	logger := slog.Default()
 
-	// deletedFeed := make(chan PersistedPost, 30)
-
-	deletedFeed := Consume(ctx, env, dbPath, logger)
-
-	Serve(env, port, deletedFeed)
+	deletedFeed, languagesFeed := Consume(ctx, env, dbPath, logger)
+	topLangsFeed := CountLangs(languagesFeed)
+	Serve(env, port, deletedFeed, topLangsFeed)
 }

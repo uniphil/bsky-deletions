@@ -29,6 +29,7 @@ type IndexTemplateData struct {
 
 type Server struct {
 	newObserver chan chan PersistedPost
+	knownLangs  *[]string
 }
 
 type PostMessageValue struct {
@@ -51,7 +52,7 @@ type ObserversMessage struct {
 	Observers int    `json:"observers"`
 }
 
-func (p PersistedPost) toJson(t time.Time) ([]byte, error) {
+func (p *PersistedPost) toJson(t time.Time) ([]byte, error) {
 	age := (t.UnixMicro() - p.TimeUS) / 1000
 	message := PostMessage{
 		Type: "post",
@@ -70,7 +71,7 @@ func (p PersistedPost) toJson(t time.Time) ([]byte, error) {
 	return data, nil
 }
 
-func (s Server) index(w http.ResponseWriter, r *http.Request) {
+func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	log.Println("index hmmmm", r.URL)
 	seenLangs := map[string]bool{}
 	langs := []*string{}
@@ -90,12 +91,12 @@ func (s Server) index(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Vary", "accept-language")
 
 	t.ExecuteTemplate(w, "index.html", IndexTemplateData{
-		KnownLangs:   []string{"en", "b", "c"},
-		BrowserLangs: langs, //[]*string{&bleh, nil},
+		KnownLangs:   *s.knownLangs,
+		BrowserLangs: langs,
 	})
 }
 
-func (s Server) wsConnect(w http.ResponseWriter, r *http.Request) {
+func (s *Server) wsConnect(w http.ResponseWriter, r *http.Request) {
 	log.Println("ws connect hiiiii")
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -169,13 +170,13 @@ func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []stri
 	}
 }
 
-func (s Server) todo(w http.ResponseWriter, r *http.Request) {
+func (s *Server) todo(w http.ResponseWriter, r *http.Request) {
 	log.Println("todo...")
 	w.WriteHeader(200)
 	io.WriteString(w, "todo")
 }
 
-func (s Server) oops(w http.ResponseWriter, r *http.Request) {
+func (s *Server) oops(w http.ResponseWriter, r *http.Request) {
 	errInfo := map[string]interface{}{}
 	errInfo["ua"] = r.UserAgent()
 	d := json.NewDecoder(r.Body)
@@ -190,7 +191,7 @@ func (s Server) oops(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "got it. and sorry :/")
 }
 
-func (s Server) broadcast(deletedFeed chan PersistedPost) {
+func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-chan []string) {
 	observers := make(map[chan PersistedPost]bool)
 	observersCountTicker := time.NewTicker(3 * time.Second)
 	for {
@@ -211,17 +212,19 @@ func (s Server) broadcast(deletedFeed chan PersistedPost) {
 			for _, c := range toDelete {
 				delete(observers, c)
 			}
+		case newSeenLangs := <-knownLangsFeed:
+			s.knownLangs = &newSeenLangs
 		case c := <-s.newObserver:
-			log.Println("new client", c)
 			observers[c] = true
 		}
 	}
 }
 
-func Serve(env, port string, deletedFeed chan PersistedPost) {
+func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-chan []string) {
 
 	server := Server{
 		newObserver: make(chan chan PersistedPost),
+		knownLangs:  &[]string{"pt", "en", "ja"},
 	}
 
 	router := http.NewServeMux()
@@ -240,7 +243,7 @@ func Serve(env, port string, deletedFeed chan PersistedPost) {
 	router.HandleFunc("GET /metrics", server.todo)
 	router.HandleFunc("POST /oops", server.oops)
 
-	go server.broadcast(deletedFeed)
+	go server.broadcast(deletedFeed, topLangsFeed)
 
 	log.Println("listening on", port)
 	log.Fatal(http.ListenAndServe(":"+port, router))

@@ -16,9 +16,10 @@ import (
 	"time"
 )
 
-type Consumer struct {
-	DB          *pebble.DB
-	deletedFeed chan PersistedPost
+type PostHandler struct {
+	DB            *pebble.DB
+	DeletedFeed   chan<- PersistedPost
+	LanguagesFeed chan<- []string
 }
 
 type PostTargetType string
@@ -49,7 +50,7 @@ type PersistedPost struct {
 	Target *PostTargetType
 }
 
-func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) chan PersistedPost {
+func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) (<-chan PersistedPost, <-chan []string) {
 	wsUrl := "wss://jetstream1.us-east.bsky.network/subscribe"
 
 	config := client.DefaultClientConfig()
@@ -91,10 +92,12 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) chan 
 	}
 
 	deletedFeed := make(chan PersistedPost, 30)
+	languagesFeed := make(chan []string, 2)
 
 	h := &PostHandler{
-		DB:          db,
-		DeletedFeed: deletedFeed,
+		DB:            db,
+		LanguagesFeed: languagesFeed,
+		DeletedFeed:   deletedFeed,
 	}
 
 	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
@@ -133,12 +136,7 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) chan 
 		slog.Info("gbyee")
 	}()
 
-	return deletedFeed
-}
-
-type PostHandler struct {
-	DB          *pebble.DB
-	DeletedFeed chan PersistedPost
+	return deletedFeed, languagesFeed
 }
 
 func PostKey(event *models.Event) ([]byte, error) {
@@ -160,6 +158,7 @@ func (h *PostHandler) handlePersistPost(key []byte, post apibsky.FeedPost, time 
 	}
 
 	langs := NormalizeLangs(post.Langs)
+	h.LanguagesFeed <- langs
 
 	var target *PostTargetType = nil
 	if post.Reply != nil {

@@ -3,7 +3,6 @@ package main
 import (
 	apibsky "github.com/bluesky-social/indigo/api/bsky"
 	"sort"
-	"strings"
 )
 
 type redactable struct {
@@ -87,18 +86,4 @@ func Redact(text string, facets []*apibsky.RichtextFacet) string {
 	}
 
 	return string(redactedText)
-}
-
-func NormalizeLangs(langs []string) []string {
-	normalized := []string{}
-	seen := map[string]bool{}
-	for _, lang := range langs {
-		before, _, _ := strings.Cut(lang, "-")
-		k := strings.ToLower(before)
-		if !seen[k] {
-			normalized = append(normalized, k)
-			seen[k] = true
-		}
-	}
-	return normalized
 }
