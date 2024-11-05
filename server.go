@@ -109,6 +109,21 @@ func (s *Server) wsConnect(w http.ResponseWriter, r *http.Request) {
 	s.newObserver <- receiver
 	go listen(*c, pickLangs)
 	go notify(*c, receiver, pickLangs)
+
+	if err := r.ParseForm(); err != nil {
+		log.Println("failed to get languages from websocket init. client will receive all.", err)
+		return
+	}
+
+	var initialLangs = []*string{}
+	for _, lang := range r.Form["lang"] {
+		if lang == "null" {
+			initialLangs = append(initialLangs, nil)
+		} else {
+			initialLangs = append(initialLangs, &lang)
+		}
+	}
+	pickLangs <- initialLangs
 }
 
 func listen(c websocket.Conn, pickLangs chan<- []*string) {
@@ -128,6 +143,7 @@ func listen(c websocket.Conn, pickLangs chan<- []*string) {
 		err = json.Unmarshal(message, &newLangs)
 		if err != nil {
 			log.Println("failed to decode client message", message)
+			continue
 		}
 		if newLangs.Type != "setLangs" {
 			log.Println("unexpected client message type, ignoring", newLangs.Type)
