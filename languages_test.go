@@ -46,3 +46,44 @@ func TestTopLangs(t *testing.T) {
 		t.Fatalf("langs are sorted descending")
 	}
 }
+
+func TestListeningFor(t *testing.T) {
+	if ListeningFor(map[string]bool{}, false, []string{}) != true {
+		t.Fatalf("should hear all langs when none are specified")
+	}
+	if ListeningFor(map[string]bool{}, false, []string{"en"}) != true {
+		t.Fatalf("should hear any lang when none is specified")
+	}
+	if ListeningFor(map[string]bool{}, true, []string{}) != true {
+		t.Fatalf("should hear unspecified lang when unspecified is specified")
+	}
+	if ListeningFor(map[string]bool{}, true, []string{"en"}) != false {
+		t.Fatalf("should not hear known langs when none are specified and unknown is true")
+	}
+
+	if ListeningFor(map[string]bool{"en": true}, false, []string{}) != false {
+		t.Fatalf("should not hear when unknown is false and lang is unspecified")
+	}
+	if ListeningFor(map[string]bool{"en": true}, false, []string{"en"}) != true {
+		t.Fatalf("should hear specified lang")
+	}
+	if ListeningFor(map[string]bool{"en": true}, false, []string{"pt"}) != false {
+		t.Fatalf("should not hear non-matching lang")
+	}
+	if ListeningFor(map[string]bool{"en": true}, false, []string{"pt", "en", "ja"}) != true {
+		t.Fatalf("should here for any matching post lang")
+	}
+
+	if ListeningFor(map[string]bool{"en": true}, true, []string{}) != true {
+		t.Fatalf("should hear unspecified post when wantsUnknown")
+	}
+	if ListeningFor(map[string]bool{"en": true}, true, []string{"en"}) != true {
+		t.Fatalf("should hear specified lang")
+	}
+	if ListeningFor(map[string]bool{"en": true}, true, []string{"pt"}) != false {
+		t.Fatalf("should not hear specified lang thats not listened for")
+	}
+	if ListeningFor(map[string]bool{"en": true}, true, []string{"pt", "en", "ja"}) != true {
+		t.Fatalf("should here for any matching post lang")
+	}
+}

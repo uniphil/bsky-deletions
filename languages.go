@@ -55,3 +55,22 @@ func CountLangs(postLangs <-chan []string) <-chan []string {
 
 	return topLangsFeed
 }
+
+func ListeningFor(listenerLangs map[string]bool, wantsUnknown bool, postLangs []string) bool {
+	if len(listenerLangs) == 0 {
+		if wantsUnknown {
+			return len(postLangs) == 0 // only want unspecified posts
+		} else {
+			return true // no langs select => all posts
+		}
+	}
+	if len(postLangs) == 0 {
+		return wantsUnknown // no unknown langs unless asked for
+	}
+	for _, postLang := range postLangs {
+		if listenerLangs[postLang] {
+			return true
+		}
+	}
+	return false
+}

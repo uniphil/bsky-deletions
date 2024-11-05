@@ -105,13 +105,13 @@ func (s *Server) wsConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	receiver := make(chan PersistedPost, 5)
-	pickLangs := make(chan []string)
+	pickLangs := make(chan []*string)
 	s.newObserver <- receiver
 	go listen(*c, pickLangs)
 	go notify(*c, receiver, pickLangs)
 }
 
-func listen(c websocket.Conn, pickLangs chan []string) {
+func listen(c websocket.Conn, pickLangs chan<- []*string) {
 	defer c.Close()
 	for {
 		_, message, err := c.ReadMessage()
@@ -122,8 +122,8 @@ func listen(c websocket.Conn, pickLangs chan []string) {
 			break
 		}
 		newLangs := struct {
-			Type  string   `json:"type"`
-			Langs []string `json:"langs"`
+			Type  string    `json:"type"`
+			Langs []*string `json:"langs"`
 		}{}
 		err = json.Unmarshal(message, &newLangs)
 		if err != nil {
@@ -137,15 +137,19 @@ func listen(c websocket.Conn, pickLangs chan []string) {
 	}
 }
 
-func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []string) {
+func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []*string) {
 	defer func() {
 		c.Close()
 		close(receiver)
 	}()
-	var langs = []string{}
+	var listenerLangs = map[string]bool{}
+	var wantsUnknownLangs = false
 	for {
 		select {
 		case post := <-receiver:
+			if !ListeningFor(listenerLangs, wantsUnknownLangs, post.Langs) {
+				continue
+			}
 			data, err := post.toJson(time.Now())
 			if err != nil {
 				log.Println("could not serialize post", post)
@@ -156,14 +160,19 @@ func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []stri
 				break
 			}
 			w.Write(data)
-			if len(langs) > 1 {
-				log.Println("sup")
-			}
 			if err := w.Close(); err != nil {
 				break
 			}
 		case newLangs := <-pickLangs:
-			langs = newLangs
+			listenerLangs = map[string]bool{}
+			wantsUnknownLangs = false
+			for _, lang := range newLangs {
+				if lang == nil {
+					wantsUnknownLangs = true
+				} else {
+					listenerLangs[*lang] = true
+				}
+			}
 		default:
 			break
 		}
