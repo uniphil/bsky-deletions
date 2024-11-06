@@ -3,12 +3,14 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,7 +30,8 @@ type IndexTemplateData struct {
 }
 
 type Server struct {
-	newObserver chan chan PersistedPost
+	newObserver chan chan ObserverMessage
+	langsLock   sync.Mutex
 	knownLangs  *[]string
 }
 
@@ -52,23 +55,41 @@ type ObserversMessage struct {
 	Observers int    `json:"observers"`
 }
 
-func (p *PersistedPost) toJson(t time.Time) ([]byte, error) {
-	age := (t.UnixMicro() - p.TimeUS) / 1000
-	message := PostMessage{
-		Type: "post",
-		Post: PostMessagePost{
-			Age: age,
-			Value: PostMessageValue{
-				Text:   p.Text,
-				Target: p.Target,
+type ObserverMessageType string
+
+const (
+	ObserverMessageTypePost      ObserverMessageType = "post"
+	ObserverMessageTypeObservers ObserverMessageType = "observers"
+)
+
+type ObserverMessage struct {
+	Type           ObserverMessageType `json:"type"`
+	ObserversCount int                 `json:"observers"`
+	Post           *PersistedPost      `json:"post"`
+}
+
+func (om *ObserverMessage) toJson(t time.Time) ([]byte, error) {
+	switch om.Type {
+	case ObserverMessageTypePost:
+		age := (t.UnixMicro() - om.Post.TimeUS) / 1000
+		return json.Marshal(PostMessage{
+			Type: "post",
+			Post: PostMessagePost{
+				Age: age,
+				Value: PostMessageValue{
+					Text:   om.Post.Text,
+					Target: om.Post.Target,
+				},
 			},
-		},
+		})
+	case ObserverMessageTypeObservers:
+		return json.Marshal(ObserversMessage{
+			Type:      "observers",
+			Observers: om.ObserversCount,
+		})
+	default:
+		return nil, fmt.Errorf("unhandled message type %s", om.Type)
 	}
-	data, err := json.Marshal(&message)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
 }
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +112,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Vary", "accept-language")
 
 	t.ExecuteTemplate(w, "index.html", IndexTemplateData{
-		KnownLangs:   *s.knownLangs,
+		KnownLangs:   s.getKnownLangs(),
 		BrowserLangs: langs,
 	})
 }
@@ -104,7 +125,7 @@ func (s *Server) wsConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	receiver := make(chan PersistedPost, 5)
+	receiver := make(chan ObserverMessage, 5)
 	pickLangs := make(chan []*string)
 	s.newObserver <- receiver
 	go listen(*c, pickLangs)
@@ -153,7 +174,7 @@ func listen(c websocket.Conn, pickLangs chan<- []*string) {
 	}
 }
 
-func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []*string) {
+func notify(c websocket.Conn, receiver chan ObserverMessage, pickLangs chan []*string) {
 	defer func() {
 		c.Close()
 		close(receiver)
@@ -162,15 +183,12 @@ func notify(c websocket.Conn, receiver chan PersistedPost, pickLangs chan []*str
 	var wantsUnknownLangs = false
 	for {
 		select {
-		case post := <-receiver:
-			if !ListeningFor(listenerLangs, wantsUnknownLangs, post.Langs) {
+		case message := <-receiver:
+			if message.Type == ObserverMessageTypePost &&
+				!ListeningFor(listenerLangs, wantsUnknownLangs, message.Post.Langs) {
 				continue
 			}
-			data, err := post.toJson(time.Now())
-			if err != nil {
-				log.Println("could not serialize post", post)
-				continue
-			}
+			data, err := message.toJson(time.Now())
 			w, err := c.NextWriter(websocket.TextMessage)
 			if err != nil {
 				break
@@ -216,31 +234,57 @@ func (s *Server) oops(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "got it. and sorry :/")
 }
 
+func (s *Server) getKnownLangs() []string {
+	s.langsLock.Lock()
+	defer s.langsLock.Unlock()
+	return *s.knownLangs
+}
+
+func (s *Server) updateLangs(newLangs *[]string) {
+	s.langsLock.Lock()
+	defer s.langsLock.Unlock()
+	s.knownLangs = newLangs
+}
+
 func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-chan []string) {
-	observers := make(map[chan PersistedPost]bool)
-	observersCountTicker := time.NewTicker(3 * time.Second)
+	observers := make(map[chan ObserverMessage]bool)
+	observersCountRefresh := 7 * time.Second
+	observersCountTicker := time.NewTicker(observersCountRefresh)
+
+	sendMessage := func(message ObserverMessage) {
+		var toRemove = []chan ObserverMessage{}
+		for c := range observers {
+			select {
+			case c <- message:
+			default:
+				log.Println("dropping client", c)
+				toRemove = append(toRemove, c)
+			}
+		}
+		for _, c := range toRemove {
+			delete(observers, c)
+		}
+	}
+
 	for {
 		select {
 		case <-observersCountTicker.C:
 			log.Println("tick: notify observers", len(observers))
 		case post := <-deletedFeed:
 			log.Println("deleted post", post)
-			var toDelete = []chan PersistedPost{}
-			for c := range observers {
-				select {
-				case c <- post:
-				default:
-					log.Println("should drop client", c)
-					toDelete = append(toDelete, c)
-				}
-			}
-			for _, c := range toDelete {
-				delete(observers, c)
-			}
+			sendMessage(ObserverMessage{
+				Type: ObserverMessageTypePost,
+				Post: &post,
+			})
 		case newSeenLangs := <-knownLangsFeed:
-			s.knownLangs = &newSeenLangs
+			s.updateLangs(&newSeenLangs)
 		case c := <-s.newObserver:
+			observersCountTicker.Reset(observersCountRefresh)
 			observers[c] = true
+			sendMessage(ObserverMessage{
+				Type:           ObserverMessageTypeObservers,
+				ObserversCount: len(observers),
+			})
 		}
 	}
 }
@@ -248,7 +292,7 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-chan []string) {
 
 	server := Server{
-		newObserver: make(chan chan PersistedPost),
+		newObserver: make(chan chan ObserverMessage),
 		knownLangs:  &[]string{"pt", "en", "ja"},
 	}
 
