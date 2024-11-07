@@ -93,7 +93,6 @@ func (om *ObserverMessage) toJson(t time.Time) ([]byte, error) {
 }
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
-	log.Println("index hmmmm", r.URL)
 	seenLangs := map[string]bool{}
 	langs := []*string{}
 	acceptHeaderValue := r.Header.Get("Accept-Language")
@@ -118,14 +117,13 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) wsConnect(w http.ResponseWriter, r *http.Request) {
-	log.Println("ws connect hiiiii")
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("failed to upgrade websocket connection", err)
 		return
 	}
 
-	receiver := make(chan ObserverMessage, 5)
+	receiver := make(chan ObserverMessage, 2)
 	pickLangs := make(chan []*string)
 	s.newObserver <- receiver
 	go listen(*c, pickLangs)
@@ -174,11 +172,8 @@ func listen(c websocket.Conn, pickLangs chan<- []*string) {
 	}
 }
 
-func notify(c websocket.Conn, receiver chan ObserverMessage, pickLangs chan []*string) {
-	defer func() {
-		c.Close()
-		close(receiver)
-	}()
+func notify(c websocket.Conn, receiver <-chan ObserverMessage, pickLangs chan []*string) {
+	defer c.Close()
 	var listenerLangs = map[string]bool{}
 	var wantsUnknownLangs = false
 	for {
@@ -191,11 +186,11 @@ func notify(c websocket.Conn, receiver chan ObserverMessage, pickLangs chan []*s
 			data, err := message.toJson(time.Now())
 			w, err := c.NextWriter(websocket.TextMessage)
 			if err != nil {
-				break
+				return
 			}
 			w.Write(data)
 			if err := w.Close(); err != nil {
-				break
+				return
 			}
 		case newLangs := <-pickLangs:
 			listenerLangs = map[string]bool{}
@@ -207,8 +202,6 @@ func notify(c websocket.Conn, receiver chan ObserverMessage, pickLangs chan []*s
 					listenerLangs[*lang] = true
 				}
 			}
-		default:
-			break
 		}
 	}
 }
@@ -269,9 +262,11 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 	for {
 		select {
 		case <-observersCountTicker.C:
-			log.Println("tick: notify observers", len(observers))
+			sendMessage(ObserverMessage{
+				Type:           ObserverMessageTypeObservers,
+				ObserversCount: len(observers),
+			})
 		case post := <-deletedFeed:
-			log.Println("deleted post", post)
 			sendMessage(ObserverMessage{
 				Type: ObserverMessageTypePost,
 				Post: &post,
@@ -298,12 +293,9 @@ func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-ch
 
 	router := http.NewServeMux()
 	router.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("incoming...")
 		if r.Header.Get("Upgrade") == "websocket" {
-			log.Println("seems like a ws upgrade...")
 			server.wsConnect(w, r)
 		} else {
-			log.Println("not a ws upgrade...")
 			server.index(w, r)
 		}
 	})
