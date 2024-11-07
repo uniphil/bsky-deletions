@@ -4,24 +4,23 @@
 #
 
 app = 'bsky-deletions'
-primary_region = 'ewr'
+primary_region = 'yyz'
 
 [build]
+  builder = "paketobuildpacks/builder:base"
+  buildpacks = ["gcr.io/paketo-buildpacks/go"]
 
 [mounts]
   source = "bsky_deletions_cache"
   destination = "/data"
   initial_size = "10gb"
 
-[metrics]
-  port = 3000
-  path = "/metrics"
-
 [env]
   ENV = "production"
+  DB_PATH = "/data/posts.db"
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'off'
   auto_start_machines = false
