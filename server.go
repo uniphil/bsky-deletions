@@ -244,7 +244,7 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 	observersCountRefresh := 7 * time.Second
 	observersCountTicker := time.NewTicker(observersCountRefresh)
 
-	sendMessage := func(message ObserverMessage) {
+	sendMessage := func(message ObserverMessage) bool {
 		var toRemove = []chan ObserverMessage{}
 		for c := range observers {
 			select {
@@ -257,6 +257,7 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 		for _, c := range toRemove {
 			delete(observers, c)
 		}
+		return len(toRemove) > 0
 	}
 
 	for {
@@ -267,10 +268,16 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 				ObserversCount: len(observers),
 			})
 		case post := <-deletedFeed:
-			sendMessage(ObserverMessage{
+			if sendMessage(ObserverMessage{
 				Type: ObserverMessageTypePost,
 				Post: &post,
-			})
+			}) {
+				observersCountTicker.Reset(observersCountRefresh)
+				sendMessage(ObserverMessage{
+					Type:           ObserverMessageTypeObservers,
+					ObserversCount: len(observers),
+				})
+			}
 		case newSeenLangs := <-knownLangsFeed:
 			s.updateLangs(&newSeenLangs)
 		case c := <-s.newObserver:
