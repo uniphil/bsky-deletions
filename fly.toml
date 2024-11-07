@@ -7,8 +7,6 @@ app = 'bsky-deletions'
 primary_region = 'yyz'
 
 [build]
-  builder = "paketobuildpacks/builder:base"
-  buildpacks = ["gcr.io/paketo-buildpacks/go"]
 
 [mounts]
   source = "bsky_deletions_cache"
