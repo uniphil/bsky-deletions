@@ -208,7 +208,7 @@ a {
         </div>
 
         <div class="thanks">
-          <a href="https://bsky.app/profile/uniphil.bsky.social/post/3l53o5atwio2t" target="_blank">about</a>
+          <a href="https://bsky.app/profile/bad-example.com/post/3l53o5atwio2t" target="_blank">about</a>
           <a href="https://docs.google.com/forms/d/e/1FAIpQLSeuV32IJL_xWKCHD6JsuWa8D60-0n10LQ6Fn5_Iw1Jj9hyKAQ/viewform" target="_blank">feedback</a>
           <details>
             <summary>thanks</summary>
@@ -240,9 +240,11 @@ const connect = langs => {
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsParams = new URLSearchParams();
   langs.forEach(lang => wsParams.append('lang', lang));
-  ws = new WebSocket(`${wsProto}//${window.location.host}/?${wsParams}`);
+  const wsUrl = `${wsProto}//${window.location.host}/?${wsParams}`;
+  console.info('ws connect', wsUrl);
+  ws = new WebSocket(wsUrl);
   ws.onopen = petWatchdog;
-  ws.onclose = () => oops(1);
+  ws.onclose = () => missedU(1, 'ws.onclose');
   ws.onerror = e => { ws.close(); console.error(e) };
   ws.onmessage = ({ data }) => {
     petWatchdog();
@@ -260,7 +262,8 @@ const connect = langs => {
 
 let wdt;
 let reconTimer;
-const oops = n => {
+const missedU = (n, msg) => {
+  console.info('missedU', msg)
   connectionStatusEl.classList.add('timeout');
   let t = RECONNECT_RETRY * Math.pow(1.4, (n ?? 0));
   t *= Math.random() / 10 + 1;
@@ -268,7 +271,7 @@ const oops = n => {
     if (ws.readyState === ws.CLOSED) {
       connect(getSelectedLangs());
     } else {
-      oops((n ?? 0) + 1);
+      missedU((n ?? 0) + 1, `${msg}.reconTimer`);
     }
   }, t);
 };
@@ -276,9 +279,9 @@ const petWatchdog = () => {
   connectionStatusEl.classList.remove('timeout');
   clearTimeout(wdt);
   clearTimeout(reconTimer);
-  wdt = setTimeout(oops, DISCONNECT_TIMEOUT);
+  wdt = setTimeout(() => missedU(0, 'wdt'), DISCONNECT_TIMEOUT);
 };
-let initialLangs = [[BROWSER_LANGS]];
+let initialLangs = {{ .BrowserLangs }};
 try { initialLangs = JSON.parse(localStorage.getItem('langs')) || initialLangs; }
 catch (e) { console.warn('could not load saved langs', e) }
 connect(initialLangs);
@@ -362,7 +365,7 @@ function showWaiting() {
 }
 
 /// lang selector
-[[KNOWN_LANGS]].forEach(lang => {
+{{ .KnownLangs }}.forEach(lang => {
   const langEl = document.createElement('label');
   langSelectorForm.appendChild(langEl);
   const langBox = document.createElement('input');
