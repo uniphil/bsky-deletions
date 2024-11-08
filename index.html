@@ -244,7 +244,7 @@ const connect = langs => {
   console.info('ws connect', wsUrl);
   ws = new WebSocket(wsUrl);
   ws.onopen = petWatchdog;
-  ws.onclose = () => oops(1);
+  ws.onclose = () => missedU(1, 'ws.onclose');
   ws.onerror = e => { ws.close(); console.error(e) };
   ws.onmessage = ({ data }) => {
     petWatchdog();
@@ -262,7 +262,8 @@ const connect = langs => {
 
 let wdt;
 let reconTimer;
-const oops = n => {
+const missedU = (n, msg) => {
+  console.info('missedU', msg)
   connectionStatusEl.classList.add('timeout');
   let t = RECONNECT_RETRY * Math.pow(1.4, (n ?? 0));
   t *= Math.random() / 10 + 1;
@@ -270,7 +271,7 @@ const oops = n => {
     if (ws.readyState === ws.CLOSED) {
       connect(getSelectedLangs());
     } else {
-      oops((n ?? 0) + 1);
+      missedU((n ?? 0) + 1, `${msg}.reconTimer`);
     }
   }, t);
 };
@@ -278,7 +279,7 @@ const petWatchdog = () => {
   connectionStatusEl.classList.remove('timeout');
   clearTimeout(wdt);
   clearTimeout(reconTimer);
-  wdt = setTimeout(oops, DISCONNECT_TIMEOUT);
+  wdt = setTimeout(() => missedU(0, 'wdt'), DISCONNECT_TIMEOUT);
 };
 let initialLangs = {{ .BrowserLangs }};
 try { initialLangs = JSON.parse(localStorage.getItem('langs')) || initialLangs; }
