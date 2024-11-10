@@ -110,20 +110,13 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) (<-ch
 
 	// Every 5 seconds print the events read and bytes read and average event size
 	go func() {
-		statsTicker := time.NewTicker(5 * time.Second)
 		trimTicker := time.NewTicker(8 * time.Second)
 		for {
 			select {
-			case <-statsTicker.C:
-				eventsRead := c.EventsRead.Load()
-				bytesRead := c.BytesRead.Load()
-				avgEventSize := bytesRead / eventsRead
-				logger.Info("stats", "events_read", eventsRead, "bytes_read", bytesRead, "avg_event_size", avgEventSize)
 			case <-trimTicker.C:
 				if err := h.TrimEvents(ctx); err != nil {
 					logger.Error("failed to trim events", "error", err)
 				}
-				logger.Info("trimmed")
 			}
 		}
 	}()
