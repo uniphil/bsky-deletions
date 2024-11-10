@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"html/template"
 	"io"
 	"log"
@@ -12,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 //go:embed *.html
@@ -207,10 +207,9 @@ func notify(c websocket.Conn, receiver <-chan ObserverMessage, pickLangs chan []
 	}
 }
 
-func (s *Server) todo(w http.ResponseWriter, r *http.Request) {
-	log.Println("todo...")
+func (s *Server) readiness(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
-	io.WriteString(w, "todo")
+	io.WriteString(w, "ready")
 }
 
 func (s *Server) oops(w http.ResponseWriter, r *http.Request) {
@@ -300,8 +299,7 @@ func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-ch
 	}
 
 	router := http.NewServeMux()
-	router.HandleFunc("GET /ready", server.todo)
-	router.HandleFunc("GET /stats", server.todo)
+	router.HandleFunc("GET /ready", server.readiness)
 	router.Handle("GET /metrics", promhttp.Handler())
 	router.HandleFunc("POST /oops", server.oops)
 	router.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {

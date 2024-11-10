@@ -50,11 +50,9 @@ type PersistedPost struct {
 	Target *PostTargetType
 }
 
-func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) (<-chan PersistedPost, <-chan []string) {
-	wsUrl := "wss://jetstream1.us-east.bsky.network/subscribe"
-
+func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan PersistedPost, <-chan []string) {
 	config := client.DefaultClientConfig()
-	config.WebsocketURL = wsUrl
+	config.WebsocketURL = jsUrl
 	config.Compress = true
 	config.WantedCollections = []string{"app.bsky.feed.post"}
 
@@ -63,6 +61,7 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) (<-ch
 		log.Fatalf("failed to open db: %#v", err)
 	}
 
+	// todo: make a separate goroutine for backfill
 	var cursor int64
 	if env == "development" {
 		cursor = time.Now().Add(5 * -time.Minute).UnixMicro()
@@ -85,7 +84,6 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) (<-ch
 		}
 	} else {
 		log.Printf("no last el")
-		cursor = time.Now().Add(5 * -time.Minute).UnixMicro()
 	}
 	if err := iter.Close(); err != nil {
 		log.Fatalf("failed to close iterator: %s", err)
@@ -108,15 +106,11 @@ func Consume(ctx context.Context, env, dbPath string, logger *slog.Logger) (<-ch
 		log.Fatalf("failed to create client: %#v", err)
 	}
 
-	// Every 5 seconds print the events read and bytes read and average event size
 	go func() {
 		trimTicker := time.NewTicker(8 * time.Second)
-		for {
-			select {
-			case <-trimTicker.C:
-				if err := h.TrimEvents(ctx); err != nil {
-					logger.Error("failed to trim events", "error", err)
-				}
+		for range trimTicker.C {
+			if err := h.TrimEvents(ctx); err != nil {
+				logger.Error("failed to trim events", "error", err)
 			}
 		}
 	}()
@@ -141,12 +135,9 @@ func PostKey(event *models.Event) ([]byte, error) {
 }
 
 func (h *PostHandler) handlePersistPost(key []byte, post apibsky.FeedPost, time int64) error {
-	// todo: validate rkey not too far in future
-
 	redacted := Redact(post.Text, post.Facets)
 	redacted = strings.TrimSpace(redacted)
-	if redacted == "" {
-		// drop empty posts (and updates that become empty)
+	if redacted == "" { // drop empty posts (and updates that become empty)
 		return nil
 	}
 
@@ -196,7 +187,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 		eventTime := time.UnixMicro(event.TimeUS)
 		timeError := rkeyTime.Sub(eventTime).Abs()
 		if timeError > maxRkeyTimeError {
-			fmt.Printf("rkey TID differs too much from post time, by %.s. ignoring event.\n", timeError)
+			fmt.Printf("rkey TID %s differs too much from post time, by %.1fh. ignoring event.\n", rkeyTime, timeError.Hours())
 			return nil
 		}
 
@@ -235,10 +226,10 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 
 		return h.handlePersistPost(key, post, postTime)
 	} else if event.Commit.Operation == models.CommitOperationDelete {
+
 		post, err := h.TakeEvent(key)
 		if err != nil {
-			if err == pebble.ErrNotFound {
-				// cache miss: ignore
+			if err == pebble.ErrNotFound { // cache miss: ignore
 				return nil
 			} else {
 				return err

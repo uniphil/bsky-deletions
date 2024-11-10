@@ -19,6 +19,7 @@ primary_region = 'yyz'
 
 [env]
   ENV = "production"
+  JETSTREAM_SUBSCRIBE = "wss://jetstream1.us-east.bsky.network/subscribe"
   DB_PATH = "/data/posts.db"
 
 [http_service]
@@ -34,7 +35,7 @@ primary_region = 'yyz'
     soft_limit = 500
 
 [[http_service.checks]]
-  grace_period = "8s"
+  grace_period = "2s"
   interval = "15s"
   method = "GET"
   timeout = "2s"

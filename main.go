@@ -17,6 +17,11 @@ func main() {
 		port = "8080"
 	}
 
+	jsUrl := os.Getenv("JETSTREAM_SUBSCRIBE")
+	if jsUrl == "" {
+		jsUrl = "wss://jetstream1.us-east.bsky.network/subscribe"
+	}
+
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
 		dbPath = "./posts-cache.db"
@@ -30,7 +35,7 @@ func main() {
 	})))
 	logger := slog.Default()
 
-	deletedFeed, languagesFeed := Consume(ctx, env, dbPath, logger)
+	deletedFeed, languagesFeed := Consume(ctx, env, jsUrl, dbPath, logger)
 	topLangsFeed := CountLangs(languagesFeed)
 	Serve(env, port, deletedFeed, topLangsFeed)
 }
