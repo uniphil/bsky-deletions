@@ -299,17 +299,21 @@ func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-ch
 	}
 
 	router := http.NewServeMux()
+	router.HandleFunc("GET /ready", server.todo)
+	router.HandleFunc("GET /stats", server.todo)
+	router.HandleFunc("GET /metrics", server.todo)
+	router.HandleFunc("POST /oops", server.oops)
 	router.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" { // surprise, what a default :/
+			http.NotFound(w, r)
+			return
+		}
 		if r.Header.Get("Upgrade") == "websocket" {
 			server.wsConnect(w, r)
 		} else {
 			server.index(w, r)
 		}
 	})
-	router.HandleFunc("GET /ready", server.todo)
-	router.HandleFunc("GET /stats", server.todo)
-	router.HandleFunc("GET /metrics", server.todo)
-	router.HandleFunc("POST /oops", server.oops)
 
 	go server.broadcast(deletedFeed, topLangsFeed)
 
