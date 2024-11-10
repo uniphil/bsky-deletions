@@ -13,6 +13,10 @@ primary_region = 'yyz'
   destination = "/data"
   initial_size = "10gb"
 
+[metrics]
+  port = 8080
+  path = "/metrics"
+
 [env]
   ENV = "production"
   DB_PATH = "/data/posts.db"
