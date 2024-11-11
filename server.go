@@ -72,11 +72,10 @@ type ObserverMessage struct {
 func (om *ObserverMessage) toJson(t time.Time) ([]byte, error) {
 	switch om.Type {
 	case ObserverMessageTypePost:
-		age := (t.UnixMicro() - om.Post.TimeUS) / 1000
 		return json.Marshal(PostMessage{
 			Type: "post",
 			Post: PostMessagePost{
-				Age: age,
+				Age: om.Post.AgeMs(t),
 				Value: PostMessageValue{
 					Text:   om.Post.Text,
 					Target: om.Post.Target,

@@ -50,6 +50,29 @@ type PersistedPost struct {
 	Target *PostTargetType
 }
 
+func (p *PersistedPost) AgeMs(t time.Time) int64 {
+	return (t.UnixMicro() - p.TimeUS) / 1000
+}
+
+func (p *PersistedPost) FirstLang() string {
+	// only for metrics: for simplicity we only keep the first language.
+	// posts with no language get the special value "-", which can never occur
+	// in the saved languages after normalization.
+	if len(p.Langs) == 0 {
+		return "-"
+	} else {
+		return p.Langs[0]
+	}
+}
+
+func (p *PersistedPost) TargetName() string {
+	if p.Target == nil {
+		return "post"
+	} else {
+		return string(*p.Target)
+	}
+}
+
 func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan PersistedPost, <-chan []string) {
 	config := client.DefaultClientConfig()
 	config.WebsocketURL = jsUrl
@@ -164,6 +187,8 @@ func (h *PostHandler) handlePersistPost(key []byte, post apibsky.FeedPost, time 
 		return fmt.Errorf("failed to persist post: %#v", err)
 	}
 
+	postCounter.WithLabelValues(persistable.FirstLang(), persistable.TargetName()).Inc()
+
 	return nil
 }
 
@@ -226,10 +251,10 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 
 		return h.handlePersistPost(key, post, postTime)
 	} else if event.Commit.Operation == models.CommitOperationDelete {
-
 		post, err := h.TakeEvent(key)
 		if err != nil {
 			if err == pebble.ErrNotFound { // cache miss: ignore
+				postDeleteCounter.WithLabelValues("-", "-", "miss").Inc()
 				return nil
 			} else {
 				return err
@@ -241,6 +266,8 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 			default:
 				fmt.Printf("dropping deleted post because the channel is full")
 			}
+			postAge.WithLabelValues(post.TargetName()).Observe(float64(post.AgeMs(time.Now())) / 1000)
+			postDeleteCounter.WithLabelValues(post.FirstLang(), post.TargetName(), "hit").Inc()
 		}
 	}
 	return nil
@@ -279,12 +306,7 @@ func (h *PostHandler) TakeEvent(key []byte) (*PersistedPost, error) {
 
 func (h *PostHandler) TrimEvents(ctx context.Context) error {
 
-	// Keys are stored as strings of the event time in microseconds
-	// We can range delete events older than the event TTL
-	trimUntil := time.Now().Add(-maxPostRetention)
-	trimUntilRkey := syntax.NewTID(trimUntil.UnixMicro(), 0)
-	trimKey := []byte(trimUntilRkey.String())
-
+	// register the oldest event pre-trim: how  much we are overshooting
 	iter, err := h.DB.NewIter(nil)
 	if err != nil {
 		log.Fatalf("failed to get db iter: %#v", err)
@@ -294,33 +316,25 @@ func (h *PostHandler) TrimEvents(ctx context.Context) error {
 		if err := json.Unmarshal(iter.Value(), &p); err != nil {
 			log.Fatalf("failed to read latest entry: %#v", err)
 		}
+		dt := time.Since(time.UnixMicro(p.TimeUS))
+		postCacheDepth.Set(dt.Seconds())
+	} else {
+		log.Printf("nothing in db to set cache depth gauge from")
 	}
 	if err := iter.Close(); err != nil {
 		return err
 	}
+
+	// Keys are stored as strings of the event time in microseconds
+	// We can range delete events older than the event TTL
+	trimUntil := time.Now().Add(-maxPostRetention)
+	trimUntilRkey := syntax.NewTID(trimUntil.UnixMicro(), 0)
+	trimKey := []byte(trimUntilRkey.String())
 
 	// Delete all numeric keys older than the trim key
 	if err := h.DB.DeleteRange([]byte("0"), trimKey, pebble.Sync); err != nil {
 		log.Printf("no, bad, failed to delete %s", err)
 		return fmt.Errorf("failed to delete old events: %#v", err)
-	}
-
-	iter, err = h.DB.NewIter(nil)
-	if err != nil {
-		log.Fatalf("failed to get db iter: %#v", err)
-	}
-	if iter.First() {
-		var p PersistedPost
-		if err := json.Unmarshal(iter.Value(), &p); err != nil {
-			log.Fatalf("failed to read latest entry: %#v", err)
-		}
-		dt := time.Since(time.UnixMicro(p.TimeUS))
-		log.Printf("earliest ts after: %s, k: %s\n", dt, iter.Key())
-	} else {
-		log.Printf("nothing left in db after delete i guess")
-	}
-	if err := iter.Close(); err != nil {
-		return err
 	}
 
 	return nil
