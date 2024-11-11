@@ -271,6 +271,7 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 					Type:           ObserverMessageTypeObservers,
 					ObserversCount: len(observers),
 				})
+				observersCount.Set(float64(len(observers)))
 			}
 		case newSeenLangs := <-knownLangsFeed:
 			s.updateLangs(&newSeenLangs)
@@ -281,6 +282,7 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 				Type:           ObserverMessageTypeObservers,
 				ObserversCount: len(observers),
 			})
+			observersCount.Set(float64(len(observers)))
 		}
 	}
 }

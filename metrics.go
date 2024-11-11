@@ -36,3 +36,8 @@ var postAge = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:    "Histogram of ages of deleted posts, cache misses excluded",
 	Buckets: rounded(prometheus.ExponentialBuckets(20, 1.48, 24)),
 }, []string{"target"})
+
+var observersCount = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "post_deletion_observers",
+	Help: "Number of people observing the deleted posts",
+})
