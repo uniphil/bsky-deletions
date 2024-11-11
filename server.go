@@ -291,7 +291,22 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 	}
 }
 
-func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-chan []string) {
+
+func redirectHost(host string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Host != host {
+			newURL := r.URL
+			newURL.Host = host
+			newURL.Scheme = "https"
+			http.Redirect(w, r, newURL.String(), 301)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+
+func Serve(env, port, host string, deletedFeed <-chan PersistedPost, topLangsFeed <-chan []string) {
 
 	server := Server{
 		newObserver: make(chan chan ObserverMessage),
@@ -314,8 +329,17 @@ func Serve(env, port string, deletedFeed <-chan PersistedPost, topLangsFeed <-ch
 		}
 	})
 
+	var app http.Handler
+	if (host == "") {
+		log.Println("no HOST set, allowing any host")
+		app = router
+	} else {
+		log.Println("will serve for Host:", host, "(301 redirects for others)")
+		app = redirectHost(host, router)
+	}
+
 	go server.broadcast(deletedFeed, topLangsFeed)
 
 	log.Println("listening on", port)
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	log.Fatal(http.ListenAndServe(":"+port, app))
 }

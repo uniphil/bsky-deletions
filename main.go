@@ -17,6 +17,9 @@ func main() {
 		port = "8080"
 	}
 
+	host := os.Getenv("HOST")
+	// empty host string = allow all
+
 	jsUrl := os.Getenv("JETSTREAM_SUBSCRIBE")
 	if jsUrl == "" {
 		jsUrl = "wss://jetstream1.us-east.bsky.network/subscribe"
@@ -37,5 +40,5 @@ func main() {
 
 	deletedFeed, languagesFeed := Consume(ctx, env, jsUrl, dbPath, logger)
 	topLangsFeed := CountLangs(languagesFeed)
-	Serve(env, port, deletedFeed, topLangsFeed)
+	Serve(env, port, host, deletedFeed, topLangsFeed)
 }
