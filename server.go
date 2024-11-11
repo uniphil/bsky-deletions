@@ -207,11 +207,6 @@ func notify(c websocket.Conn, receiver <-chan ObserverMessage, pickLangs chan []
 	}
 }
 
-func (s *Server) readiness(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(200)
-	io.WriteString(w, "ready")
-}
-
 func (s *Server) oops(w http.ResponseWriter, r *http.Request) {
 	errInfo := map[string]interface{}{}
 	errInfo["ua"] = r.UserAgent()
@@ -291,7 +286,6 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 	}
 }
 
-
 func redirectHost(host string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != host {
@@ -305,6 +299,15 @@ func redirectHost(host string, h http.Handler) http.Handler {
 	})
 }
 
+func (s *Server) withReadyEndpoint(route string, app http.Handler) http.Handler {
+	router := http.NewServeMux()
+	router.HandleFunc(route, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		io.WriteString(w, "ready")
+	})
+	router.Handle("/", app)
+	return router
+}
 
 func Serve(env, port, host string, deletedFeed <-chan PersistedPost, topLangsFeed <-chan []string) {
 
@@ -314,7 +317,6 @@ func Serve(env, port, host string, deletedFeed <-chan PersistedPost, topLangsFee
 	}
 
 	router := http.NewServeMux()
-	router.HandleFunc("GET /ready", server.readiness)
 	router.Handle("GET /metrics", promhttp.Handler())
 	router.HandleFunc("POST /oops", server.oops)
 	router.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
@@ -330,13 +332,17 @@ func Serve(env, port, host string, deletedFeed <-chan PersistedPost, topLangsFee
 	})
 
 	var app http.Handler
-	if (host == "") {
+	if host == "" {
 		log.Println("no HOST set, allowing any host")
 		app = router
 	} else {
 		log.Println("will serve for Host:", host, "(301 redirects for others)")
 		app = redirectHost(host, router)
 	}
+
+	// fly health checks don't use our custom domain for HOST, so register
+	// the /ready healthcheck endpoint outside the host redirect
+	app = server.withReadyEndpoint("GET /ready", app)
 
 	go server.broadcast(deletedFeed, topLangsFeed)
 
