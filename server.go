@@ -93,6 +93,7 @@ func (om *ObserverMessage) toJson(t time.Time) ([]byte, error) {
 }
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
+	log.Println("hello from", r.Header.Get("Referer"))
 	seenLangs := map[string]bool{}
 	langs := []*string{}
 	acceptHeaderValue := r.Header.Get("Accept-Language")
