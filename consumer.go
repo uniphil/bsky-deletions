@@ -39,7 +39,7 @@ func MustParseDuration(d string) time.Duration {
 
 var ( // gross: duration can't be const
 	maxRkeyTimeError time.Duration = MustParseDuration("1h")
-	maxRkeySince     time.Duration = MustParseDuration("2h")
+	maxRkeySince     time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
 	maxPostRetention time.Duration = MustParseDuration("24h") * 2
 )
 
