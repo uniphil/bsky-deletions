@@ -7,6 +7,7 @@ require (
 	github.com/bluesky-social/jetstream v0.0.0-20241031234625-0ab10bd041fe
 	github.com/cockroachdb/pebble v1.1.2
 	github.com/gorilla/websocket v1.5.1
+	github.com/prometheus/client_golang v1.20.5
 )
 
 require (
@@ -59,7 +60,6 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/polydawn/refmt v0.89.1-0.20221221234430-40501e09de1f // indirect
-	github.com/prometheus/client_golang v1.20.5 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
@@ -82,3 +82,5 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect
 )
+
+replace github.com/bluesky-social/jetstream => github.com/uniphil/jetstream v0.0.0-20241118044712-a12f505de73b

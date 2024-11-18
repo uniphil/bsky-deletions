@@ -124,6 +124,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
 
 	// TODO: does the client already handle reconnects?
+	// TODO noooooo it does not eek
 	c, err := client.NewClient(config, logger, scheduler)
 	if err != nil {
 		log.Fatalf("failed to create client: %#v", err)
@@ -140,10 +141,10 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 
 	go func() {
 		if err := c.ConnectAndRead(ctx, &cursor); err != nil {
-			log.Fatalf("failed to connect: %#v", err)
+			logger.Error("failed to connect", err)
 		}
 		h.DB.Close()
-		slog.Info("gbyee")
+		log.Fatalf("gbyeee")
 	}()
 
 	return deletedFeed, languagesFeed
