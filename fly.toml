@@ -20,7 +20,7 @@ primary_region = 'yyz'
 [env]
   ENV = "production"
   HOST = "deletions.bsky.bad-example.com"
-  JETSTREAM_SUBSCRIBE = "wss://jetstream1.us-east.bsky.network/subscribe"
+  JETSTREAM_SUBSCRIBE = "wss://jetstream2.us-east.bsky.network/subscribe"
   DB_PATH = "/data/posts.db"
 
 [http_service]

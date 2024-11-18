@@ -41,6 +41,8 @@ var ( // gross: duration can't be const
 	maxRkeyTimeError time.Duration = MustParseDuration("1h")
 	maxRkeySince     time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
 	maxPostRetention time.Duration = MustParseDuration("24h") * 2
+	connectRetryReset time.Duration = MustParseDuration("15m")
+	connectRetryWait time.Duration = MustParseDuration("3s")
 )
 
 type PersistedPost struct {
@@ -123,8 +125,6 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 
 	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
 
-	// TODO: does the client already handle reconnects?
-	// TODO noooooo it does not eek
 	c, err := client.NewClient(config, logger, scheduler)
 	if err != nil {
 		log.Fatalf("failed to create client: %#v", err)
@@ -140,11 +140,31 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 	}()
 
 	go func() {
-		if err := c.ConnectAndRead(ctx, &cursor); err != nil {
-			logger.Error("failed to connect", err)
+		defer h.DB.Close();
+
+		var retry = 0
+		var lastConnect = time.Now()
+		for {
+			if err := c.ConnectAndRead(ctx, &cursor); err != nil {
+				if time.Since(lastConnect) >= connectRetryReset {
+					retry = 0;
+					logger.Info("jetstream connection ended with error, will retry", err)
+				} else {
+					retry += 1;
+					if retry >= 7 {
+						log.Fatalf("jetstream: connection ended with error and no more retries. exiting", err)
+					} else {
+						logger.Info("jetstream connection ended with error", err, "retry:", retry)
+					}
+				}
+				time.Sleep(connectRetryWait)
+				lastConnect = time.Now()
+			} else {
+				logger.Info("jetstream ended without error. exiting..?")
+				break
+			}
 		}
-		h.DB.Close()
-		log.Fatalf("gbyeee")
+		logger.Info("gbyeee from jetstream")
 	}()
 
 	return deletedFeed, languagesFeed
