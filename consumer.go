@@ -7,7 +7,7 @@ import (
 	apibsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bluesky-social/jetstream/pkg/client"
-	"github.com/bluesky-social/jetstream/pkg/client/schedulers/sequential"
+	"github.com/bluesky-social/jetstream/pkg/client/schedulers/parallel"
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/cockroachdb/pebble"
 	"log"
@@ -18,7 +18,7 @@ import (
 
 type PostHandler struct {
 	DB            *pebble.DB
-	DeletedFeed   chan<- UncoveredPost
+	DeletedFeed   chan<- LikedPersistedPost
 	LanguagesFeed chan<- []string
 }
 
@@ -81,7 +81,7 @@ func (p *PersistedPost) TargetName() string {
 	}
 }
 
-func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan UncoveredPost, <-chan []string) {
+func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan LikedPersistedPost, <-chan []string) {
 	config := client.DefaultClientConfig()
 	config.WebsocketURL = jsUrl
 	config.Compress = true
@@ -120,7 +120,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		log.Fatalf("failed to close iterator: %s", err)
 	}
 
-	deletedFeed := make(chan UncoveredPost, 120)
+	deletedFeed := make(chan LikedPersistedPost, 120)
 	languagesFeed := make(chan []string, 2)
 
 	h := &PostHandler{
@@ -129,7 +129,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		DeletedFeed:   deletedFeed,
 	}
 
-	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
+	scheduler := parallel.NewScheduler(21, "asdf", logger, h.HandleEvent)
 
 	c, err := client.NewClient(config, logger, scheduler)
 	if err != nil {
@@ -293,8 +293,9 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 				Did:  event.Did,
 				RKey: event.Commit.RKey,
 			}
+			liked := GetLikes(uncovered)
 			select {
-			case h.DeletedFeed <- uncovered:
+			case h.DeletedFeed <- liked:
 			default:
 				fmt.Printf("dropping deleted post because the channel is full\n")
 			}

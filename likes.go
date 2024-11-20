@@ -17,20 +17,12 @@ type LikesResult struct {
 	// Dids  []string `json:"latest_dids"`
 }
 
-func GetLikes(deletedFeed <-chan UncoveredPost) <-chan LikedPersistedPost {
-	likedPosts := make(chan LikedPersistedPost, 30)
-
-	go func() {
-		for uncovered := range deletedFeed {
-			likes := getLikes(uncovered.Did, uncovered.RKey)
-			likedPosts <- LikedPersistedPost{
-				Post:  uncovered.Post,
-				Likes: likes,
-			}
-		}
-	}()
-
-	return likedPosts
+func GetLikes(uncovered UncoveredPost) LikedPersistedPost {
+	likes := getLikes(uncovered.Did, uncovered.RKey)
+	return LikedPersistedPost{
+		Post:  uncovered.Post,
+		Likes: likes,
+	}
 }
 
 func getLikes(did, rkey string) *uint32 {
