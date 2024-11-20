@@ -231,7 +231,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 	if event.Commit.Operation == models.CommitOperationCreate {
 		parsed, err := syntax.ParseTID(event.Commit.RKey)
 		if err != nil {
-			fmt.Printf("failed to parse rkey %#v to TID, ignoring event.\n", err)
+			skippedPostCounter.WithLabelValues("TID failed to parse from rkey").Inc()
 			return nil
 		}
 		rkeyTime := parsed.Time()
@@ -239,13 +239,13 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 		eventTime := time.UnixMicro(event.TimeUS)
 		timeError := rkeyTime.Sub(eventTime).Abs()
 		if timeError > maxRkeyTimeError {
-			fmt.Printf("rkey TID %s differs too much from post time, by %.1fh. ignoring event.\n", rkeyTime, timeError.Hours())
+			skippedPostCounter.WithLabelValues("TID from rkey too far from event time").Inc()
 			return nil
 		}
 
 		since := time.Since(rkeyTime).Abs()
 		if since > maxRkeySince {
-			fmt.Printf("rkey %#v may not be current time, since it differs by %.1fh. ignoring event.\n", event.Commit.RKey, since.Hours())
+			skippedPostCounter.WithLabelValues("TID from rkey too far from now").Inc()
 			return nil
 		}
 	}
@@ -255,6 +255,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 	if event.Commit.Operation == models.CommitOperationCreate || event.Commit.Operation == models.CommitOperationUpdate {
 		var post apibsky.FeedPost
 		if err := json.Unmarshal(event.Commit.Record, &post); err != nil {
+			skippedPostCounter.WithLabelValues("unmarshalling record failed").Inc()
 			return fmt.Errorf("failed to unmarshal post: %#v", err)
 		}
 
@@ -266,6 +267,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 					// cache miss: ignore
 					return nil
 				} else {
+					skippedPostCounter.WithLabelValues("pebble existing post query failed").Inc()
 					return fmt.Errorf("failed to get existing event: %#v", err)
 				}
 			}
@@ -276,7 +278,11 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 			postTime = existing.TimeUS
 		}
 
-		return h.handlePersistPost(key, post, postTime)
+		if err := h.handlePersistPost(key, post, postTime); err != nil {
+			skippedPostCounter.WithLabelValues("persisting failed").Inc()
+			return err
+		}
+		return nil
 	} else if event.Commit.Operation == models.CommitOperationDelete {
 		post, err := h.TakeEvent(key)
 		if err != nil {
