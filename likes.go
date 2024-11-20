@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 )
+
+var reqClient = http.Client{
+	Timeout: 240 * time.Millisecond,
+}
 
 type LikedPersistedPost struct {
 	Post  *PersistedPost
@@ -34,12 +39,7 @@ func getLikes(did, rkey string) *uint32 {
 	query.Set("uri", targetUri)
 	url := aggregatorBase + "?" + query.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		fmt.Printf("failed to build request: %w\n", err)
-		return nil
-	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := reqClient.Get(url)
 	if err != nil {
 		fmt.Printf("failed to do request: %w\n", err)
 		return nil
