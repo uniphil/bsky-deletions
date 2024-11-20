@@ -18,7 +18,7 @@ import (
 
 type PostHandler struct {
 	DB            *pebble.DB
-	DeletedFeed   chan<- PersistedPost
+	DeletedFeed   chan<- UncoveredPost
 	LanguagesFeed chan<- []string
 }
 
@@ -38,11 +38,11 @@ func MustParseDuration(d string) time.Duration {
 }
 
 var ( // gross: duration can't be const
-	maxRkeyTimeError time.Duration = MustParseDuration("1h")
-	maxRkeySince     time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
-	maxPostRetention time.Duration = MustParseDuration("24h") * 2
+	maxRkeyTimeError  time.Duration = MustParseDuration("1h")
+	maxRkeySince      time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
+	maxPostRetention  time.Duration = MustParseDuration("24h") * 2
 	connectRetryReset time.Duration = MustParseDuration("15m")
-	connectRetryWait time.Duration = MustParseDuration("3s")
+	connectRetryWait  time.Duration = MustParseDuration("3s")
 )
 
 type PersistedPost struct {
@@ -50,6 +50,12 @@ type PersistedPost struct {
 	Text   string
 	Langs  []string
 	Target *PostTargetType
+}
+
+type UncoveredPost struct {
+	Post *PersistedPost
+	Did  string
+	RKey string
 }
 
 func (p *PersistedPost) AgeMs(t time.Time) int64 {
@@ -75,7 +81,7 @@ func (p *PersistedPost) TargetName() string {
 	}
 }
 
-func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan PersistedPost, <-chan []string) {
+func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan UncoveredPost, <-chan []string) {
 	config := client.DefaultClientConfig()
 	config.WebsocketURL = jsUrl
 	config.Compress = true
@@ -114,7 +120,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		log.Fatalf("failed to close iterator: %s", err)
 	}
 
-	deletedFeed := make(chan PersistedPost, 30)
+	deletedFeed := make(chan UncoveredPost, 120)
 	languagesFeed := make(chan []string, 2)
 
 	h := &PostHandler{
@@ -140,17 +146,17 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 	}()
 
 	go func() {
-		defer h.DB.Close();
+		defer h.DB.Close()
 
 		var retry = 0
 		var lastConnect = time.Now()
 		for {
 			if err := c.ConnectAndRead(ctx, &cursor); err != nil {
 				if time.Since(lastConnect) >= connectRetryReset {
-					retry = 0;
+					retry = 0
 					logger.Info("jetstream connection ended with error, will retry", err)
 				} else {
-					retry += 1;
+					retry += 1
 					if retry >= 7 {
 						log.Fatalf("jetstream: connection ended with error and no more retries. exiting", err)
 					} else {
@@ -282,10 +288,15 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 			}
 		}
 		if post != nil {
+			uncovered := UncoveredPost{
+				Post: post,
+				Did:  event.Did,
+				RKey: event.Commit.RKey,
+			}
 			select {
-			case h.DeletedFeed <- *post:
+			case h.DeletedFeed <- uncovered:
 			default:
-				fmt.Printf("dropping deleted post because the channel is full")
+				fmt.Printf("dropping deleted post because the channel is full\n")
 			}
 			postAge.WithLabelValues(post.TargetName()).Observe(float64(post.AgeMs(time.Now())) / 1000)
 			postDeleteCounter.WithLabelValues(post.FirstLang(), post.TargetName(), "hit").Inc()

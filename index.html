@@ -124,20 +124,67 @@ a {
   margin: 1em auto;
 }
 
+.stack-frame {
+  --bottom: 50px;
+  box-sizing: : border-box;
+  margin: 0.1em 0;
+  overflow: hidden;
+  position: relative;
+  padding-bottom: var(--bottom);
+
+  animation: 
+    5s ease-out 3s fade,
+    3s ease-in-out 5s leave;
+}
+
 .post {
-  background: hsla(0, 0%, 0%, 0.4);
+  background: #1f141f;
   border-radius: 0.5rem;
   box-sizing: border-box;
+  cursor: pointer;
   font-style: italic;
-  margin: 1em 0;
+  margin: 0;
   overflow-wrap: break-word;
   padding: 0.5em 0.8em 0;
   position: relative;
   text-align: center;
+  width: 100%;
+  z-index: 1;
 }
 .post .wordy {
+  -webkit-box-orient: vertical;
+  box-orient: vertical;
+
+  display: -webkit-box;
+  display: box;
+
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+
   font-size: 0.8em;
+  overflow: hidden;
 }
+
+.post:not(:first-child) {
+  position: absolute;
+  z-index: calc(-1 * var(--n));
+  bottom: calc(var(--bottom) - 2px - var(--n) * 13px);
+  transform: rotate(calc(var(--n) * 0.8deg));
+  scale: calc(1 - var(--n) * .04);
+  opacity: calc(.7 - var(--n) * 0.05);
+}
+.post:nth-child(2) { --n: 1; }
+.post:nth-child(3) { --n: 2; }
+.post:nth-child(4) { --n: 3; }
+.post:nth-child(5) { --n: 4; }
+.post:nth-child(6) { --n: 5; }
+.post:nth-child(7) { --n: 6; }
+.post:nth-child(8) { --n: 7; }
+.post:nth-child(9) { --n: 8; }
+.post:nth-child(10) { --n: 9; }
+.post:nth-child(11) { --n: 10; }
+.post:nth-child(12) { --n: 11; }
+.post:nth-child(13) { --n: 12; }
 
 .post .post-info {
   color: #666;
@@ -152,10 +199,7 @@ a {
 
 .post:not(.waiting) {
   border: 2px solid hsla(0, 0%, 100%, 0.1);
-  animation:
-    0.5s ease-in arrive,
-    5s ease-out 3s fade,
-    3s ease-in-out 5s leave;
+  animation: 0.5s ease-in arrive;
 }
 
 .post.waiting {
@@ -185,7 +229,7 @@ a {
     scale: 100%;
   }
   to {
-    margin-bottom: calc(var(--h) - 1em);
+    margin-bottom: calc(var(--h) - 0.1em); /* 0.1em matches the frame margin */
     scale: 70%;
   }
 }
@@ -237,13 +281,25 @@ window.onerror = (message, source, lineno, colno, e) => navigator.sendBeacon('/o
 const SHOW_WAITING_AFTER_MS = 1000;
 const DISCONNECT_TIMEOUT = 25 * 1000; // server sends observers every 12s
 const RECONNECT_RETRY = 3000;
+const STACK_CAPTURE_TIME = 1200; // ms; posts within this will be stacked
+
+const crel = (tagName, classes) => {
+  const el = document.createElement(tagName);
+  if (classes !== undefined) {
+    el.classList.add.apply(el.classList, classes);
+  }
+  return el;
+};
 
 const postsAreaEl = document.querySelector('.posts-area');
 const waitingEl = document.querySelector('.post.waiting');
 const langSelectorForm = document.querySelector('#lang-selector');
-const includeUnsetLangInput = document.createElement('input');
+const includeUnsetLangInput = crel('input');
 const observersInfoEl = document.querySelector('#info-observers');
 const connectionStatusEl = document.querySelector('.info.connection');
+
+
+// websocket connection & message handling
 
 let ws;
 const connect = langs => {
@@ -302,7 +358,10 @@ waitingEl.remove(); // initially hide
 waitingEl.addEventListener('animationend', event => {
   if (event.animationName === 'leave') waitingEl.remove();
 });
-waitingTimer = setTimeout(showWaiting, SHOW_WAITING_AFTER_MS);
+waitingTimer = setTimeout(showListeningMessage, SHOW_WAITING_AFTER_MS);
+
+
+// post rendering
 
 const getNiceAge = ms => {
   const secs = Math.round(ms / 1000);
@@ -317,18 +376,65 @@ const getNiceAge = ms => {
   return `${hrs} hr`;
 }
 
-const createPost = post => {
+let currentStackFrame;
+let currentStackTime;
+
+function newStack() {
+  const myStackFrame = crel('div', ['stack-frame']);
+  currentStackTime = +new Date();
+  if (postsAreaEl.contains(waitingEl)) {
+    waitingEl.classList.add('leaving');
+  }
+
+  let cleanupTimer;
+  const cleanup = () => {
+    clearTimeout(cleanupTimer);
+    if (postsAreaEl.childElementCount === 1) { // we are the last one
+      clearTimeout(waitingTimer);
+      waitingTimer = setTimeout(showListeningMessage, SHOW_WAITING_AFTER_MS);
+    }
+    myStackFrame.remove();
+  };
+
+  myStackFrame.addEventListener('click', event => {
+    if (event.target.classList.contains('stack-frame')) return;
+    const first = myStackFrame.firstChild;
+    first.remove();
+    myStackFrame.appendChild(first);
+  });
+
+  myStackFrame.addEventListener('animationend', event => {
+    if (event.animationName === 'arrive') {
+      myStackFrame.style.setProperty('--h', `-${myStackFrame.getBoundingClientRect().height}px`);
+    } else if (event.animationName === 'leave') {
+      cleanup();
+    }
+  });
+
+  cleanupTimer = setTimeout(cleanup, 20000); // backup to remove nodes if we miss `animationend`
+  postsAreaEl.appendChild(myStackFrame);
+  currentStackFrame = myStackFrame;
+}
+
+function createPost(post) {
+  if (!currentStackFrame) {
+    newStack();
+  } else if ((+new Date() - currentStackTime) > STACK_CAPTURE_TIME) {
+    newStack();
+  } else if (currentStackFrame.childElementCount >= 13) {
+    return; // cap the stack
+  }
+
   const { text, target } = post.value;
 
-  const postEl = document.createElement('div');
-  postEl.classList.add('post');
+  const postEl = crel('div', ['post']);
   let wordy = text.length > 100;
 
   const paras = text
     .replace(/\n\s*\n/g, '\n')
     .split('\n')
     .map((p, i) => {
-      const postP = document.createElement('p');
+      const postP = crel('p');
       postP.textContent = p;
       if (i > 3) postEl.classList.add('wordy');
       return postP;
@@ -336,8 +442,7 @@ const createPost = post => {
 
   let postContentContainer = postEl;
   if (wordy) {
-    postContentContainer = document.createElement('div');
-    postContentContainer.classList.add('wordy');
+    postContentContainer = crel('div', ['wordy']);
     postEl.appendChild(postContentContainer);
   }
   paras.forEach(p => postContentContainer.appendChild(p));
@@ -345,40 +450,48 @@ const createPost = post => {
   let postTypeName = 'post';
   if (target === 'reply') postTypeName = 'reply';
   else if (target === 'quote') postTypeName = 'quote post';
-  const postInfoEl = document.createElement('div');
-  postInfoEl.classList.add('post-info');
-  postInfoEl.textContent = `${postTypeName}, age ${getNiceAge(post.age)}`;
+
+  const postInfoEl = crel('div', ['post-info']);
+  postInfoEl.textContent = postTypeName;
+  postInfoEl.textContent += post.likes ? `, ${post.likes} like${post.likes > 1 ? 's': ''}` : '';
+  postInfoEl.textContent += `, age ${getNiceAge(post.age)}`;
   postEl.appendChild(postInfoEl);
 
-  postEl.addEventListener('animationend', event => {
-    if (event.animationName === 'arrive') {
-      postEl.style.setProperty('--h', `-${postEl.getBoundingClientRect().height}px`);
-    } else if (event.animationName === 'leave') {
-      if (postsAreaEl.children.length === 1) { // we are the last one
-        clearTimeout(waitingTimer);
-        waitingTimer = setTimeout(showWaiting, SHOW_WAITING_AFTER_MS);
-      }
-      postEl.remove();
-    }
-  });
+  currentStackFrame.appendChild(postEl);
+}
 
-  postsAreaEl.appendChild(postEl);
-  if (postsAreaEl.contains(waitingEl)) {
-    waitingEl.classList.add('leaving');
-  }
-};
-
-function showWaiting() {
+function showListeningMessage() {
   if (postsAreaEl.children.length > 0) return;
   waitingEl.classList.remove('leaving');
   postsAreaEl.appendChild(waitingEl);
 }
 
-/// lang selector
+
+// you and who
+
+function updateObservers(observers) {
+  if (observers <= 1) {
+    observersInfoEl.textContent = 'just you.';
+  } else if (observers == 2) {
+    observersInfoEl.textContent = 'you and one other.';
+  } else if (observers == 3) {
+    observersInfoEl.textContent = 'you and two others.';
+  } else if (observers == 4) {
+    observersInfoEl.textContent = 'you and three others.';
+  } else if (observers == 5) {
+    observersInfoEl.textContent = 'you and four others.';
+  } else {
+    observersInfoEl.textContent = `you and ${observers-1} others.`;
+  }
+}
+
+
+// controls
+
 {{ .KnownLangs }}.forEach(lang => {
-  const langEl = document.createElement('label');
+  const langEl = crel('label');
   langSelectorForm.appendChild(langEl);
-  const langBox = document.createElement('input');
+  const langBox = crel('input');
   langBox.type = 'checkbox';
   if (initialLangs.includes(lang)) langBox.checked = true;
   langBox.name = lang;
@@ -389,11 +502,11 @@ function showWaiting() {
 });
 (includeUntaggedLangs => {
   const filterLangsEl = document.querySelector('#filter-langs');
-  const p = document.createElement('p');
+  const p = crel('p');
   filterLangsEl.appendChild(p);
-  const label = document.createElement('label');
+  const label = crel('label');
   p.appendChild(label);
-  const input = document.createElement('input');
+  const input = crel('input');
   label.appendChild(includeUnsetLangInput);
   const text = document.createTextNode(' include unknown');
   label.appendChild(text);
@@ -413,23 +526,6 @@ function changeLanguageSelection() {
   catch (e) { console.error('could not save lang selection', e); }
   ws.send(JSON.stringify({ type: 'setLangs', langs }));
 }
-
-function updateObservers(observers) {
-  if (observers <= 1) {
-    observersInfoEl.textContent = 'just you.';
-  } else if (observers == 2) {
-    observersInfoEl.textContent = 'you and one other.';
-  } else if (observers == 3) {
-    observersInfoEl.textContent = 'you and two others.';
-  } else if (observers == 4) {
-    observersInfoEl.textContent = 'you and three others.';
-  } else if (observers == 5) {
-    observersInfoEl.textContent = 'you and four others.';
-  } else {
-    observersInfoEl.textContent = `you and ${observers-1} others.`;
-  }
-}
-
     </script>
   </body>
 </html>

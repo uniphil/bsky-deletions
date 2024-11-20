@@ -40,5 +40,6 @@ func main() {
 
 	deletedFeed, languagesFeed := Consume(ctx, env, jsUrl, dbPath, logger)
 	topLangsFeed := CountLangs(languagesFeed)
-	Serve(env, port, host, deletedFeed, topLangsFeed)
+	likedDeletes := GetLikes(deletedFeed)
+	Serve(env, port, host, likedDeletes, topLangsFeed)
 }

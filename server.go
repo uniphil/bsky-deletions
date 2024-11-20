@@ -44,6 +44,7 @@ type PostMessageValue struct {
 type PostMessagePost struct {
 	Value PostMessageValue `json:"value"`
 	Age   int64            `json:"age"`
+	Likes *uint32          `json:"likes"`
 }
 
 type PostMessage struct {
@@ -66,7 +67,7 @@ const (
 type ObserverMessage struct {
 	Type           ObserverMessageType `json:"type"`
 	ObserversCount int                 `json:"observers"`
-	Post           *PersistedPost      `json:"post"`
+	Post           *LikedPersistedPost `json:"post"`
 }
 
 func (om *ObserverMessage) toJson(t time.Time) ([]byte, error) {
@@ -75,10 +76,11 @@ func (om *ObserverMessage) toJson(t time.Time) ([]byte, error) {
 		return json.Marshal(PostMessage{
 			Type: "post",
 			Post: PostMessagePost{
-				Age: om.Post.AgeMs(t),
+				Age:   om.Post.Post.AgeMs(t),
+				Likes: om.Post.Likes,
 				Value: PostMessageValue{
-					Text:   om.Post.Text,
-					Target: om.Post.Target,
+					Text:   om.Post.Post.Text,
+					Target: om.Post.Post.Target,
 				},
 			},
 		})
@@ -181,7 +183,7 @@ func notify(c websocket.Conn, receiver <-chan ObserverMessage, pickLangs chan []
 		select {
 		case message := <-receiver:
 			if message.Type == ObserverMessageTypePost &&
-				!ListeningFor(listenerLangs, wantsUnknownLangs, message.Post.Langs) {
+				!ListeningFor(listenerLangs, wantsUnknownLangs, message.Post.Post.Langs) {
 				continue
 			}
 			data, err := message.toJson(time.Now())
@@ -209,13 +211,13 @@ func notify(c websocket.Conn, receiver <-chan ObserverMessage, pickLangs chan []
 
 func (s *Server) oops(w http.ResponseWriter, r *http.Request) {
 	errInfo := map[string]interface{}{}
-	errInfo["ua"] = r.UserAgent()
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	err := d.Decode(&errInfo)
 	if err != nil {
 		log.Println("failed to decode json during error report, trying to continue..")
 	}
+	errInfo["ua"] = r.UserAgent()
 	jsonData, err := json.Marshal(&errInfo)
 	log.Println("client error report", string(jsonData))
 	w.WriteHeader(http.StatusCreated)
@@ -234,7 +236,7 @@ func (s *Server) updateLangs(newLangs *[]string) {
 	s.knownLangs = newLangs
 }
 
-func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-chan []string) {
+func (s *Server) broadcast(deletedFeed <-chan LikedPersistedPost, knownLangsFeed <-chan []string) {
 	observers := make(map[chan ObserverMessage]bool)
 	observersCountRefresh := 7 * time.Second
 	observersCountTicker := time.NewTicker(observersCountRefresh)
@@ -262,10 +264,10 @@ func (s *Server) broadcast(deletedFeed <-chan PersistedPost, knownLangsFeed <-ch
 				Type:           ObserverMessageTypeObservers,
 				ObserversCount: len(observers),
 			})
-		case post := <-deletedFeed:
+		case likedPost := <-deletedFeed:
 			if sendMessage(ObserverMessage{
 				Type: ObserverMessageTypePost,
-				Post: &post,
+				Post: &likedPost,
 			}) {
 				observersCountTicker.Reset(observersCountRefresh)
 				sendMessage(ObserverMessage{
@@ -311,7 +313,7 @@ func (s *Server) withReadyEndpoint(route string, app http.Handler) http.Handler 
 	return router
 }
 
-func Serve(env, port, host string, deletedFeed <-chan PersistedPost, topLangsFeed <-chan []string) {
+func Serve(env, port, host string, deletedFeed <-chan LikedPersistedPost, topLangsFeed <-chan []string) {
 
 	server := Server{
 		newObserver: make(chan chan ObserverMessage),
