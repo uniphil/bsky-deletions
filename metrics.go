@@ -16,6 +16,11 @@ var postCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help: "Count of new posts",
 }, []string{"lang", "target"})
 
+var skippedPostCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "posts_skipped",
+	Help: "Count of new post events that are not persisted in the cache",
+}, []string{"reason"})
+
 var postDeleteCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Name: "post_deletes",
 	Help: "Count of deleted posts, lang and target only available for cach hits",
@@ -41,3 +46,8 @@ var observersCount = promauto.NewGauge(prometheus.GaugeOpts{
 	Name: "post_deletion_observers",
 	Help: "Number of people observing the deleted posts",
 })
+
+var likeRequestFails = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "post_like_request_fails",
+	Help: "Failures to fetch likes for a post from atproto-link-aggregator",
+}, []string{"reason"})

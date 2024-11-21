@@ -7,7 +7,7 @@ import (
 	apibsky "github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bluesky-social/jetstream/pkg/client"
-	"github.com/bluesky-social/jetstream/pkg/client/schedulers/sequential"
+	"github.com/bluesky-social/jetstream/pkg/client/schedulers/parallel"
 	"github.com/bluesky-social/jetstream/pkg/models"
 	"github.com/cockroachdb/pebble"
 	"log"
@@ -18,7 +18,7 @@ import (
 
 type PostHandler struct {
 	DB            *pebble.DB
-	DeletedFeed   chan<- PersistedPost
+	DeletedFeed   chan<- LikedPersistedPost
 	LanguagesFeed chan<- []string
 }
 
@@ -38,11 +38,11 @@ func MustParseDuration(d string) time.Duration {
 }
 
 var ( // gross: duration can't be const
-	maxRkeyTimeError time.Duration = MustParseDuration("1h")
-	maxRkeySince     time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
-	maxPostRetention time.Duration = MustParseDuration("24h") * 2
+	maxRkeyTimeError  time.Duration = MustParseDuration("1h")
+	maxRkeySince      time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
+	maxPostRetention  time.Duration = MustParseDuration("24h") * 2
 	connectRetryReset time.Duration = MustParseDuration("15m")
-	connectRetryWait time.Duration = MustParseDuration("3s")
+	connectRetryWait  time.Duration = MustParseDuration("3s")
 )
 
 type PersistedPost struct {
@@ -50,6 +50,12 @@ type PersistedPost struct {
 	Text   string
 	Langs  []string
 	Target *PostTargetType
+}
+
+type UncoveredPost struct {
+	Post *PersistedPost
+	Did  string
+	RKey string
 }
 
 func (p *PersistedPost) AgeMs(t time.Time) int64 {
@@ -75,7 +81,7 @@ func (p *PersistedPost) TargetName() string {
 	}
 }
 
-func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan PersistedPost, <-chan []string) {
+func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger) (<-chan LikedPersistedPost, <-chan []string) {
 	config := client.DefaultClientConfig()
 	config.WebsocketURL = jsUrl
 	config.Compress = true
@@ -114,7 +120,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		log.Fatalf("failed to close iterator: %s", err)
 	}
 
-	deletedFeed := make(chan PersistedPost, 30)
+	deletedFeed := make(chan LikedPersistedPost, 120)
 	languagesFeed := make(chan []string, 2)
 
 	h := &PostHandler{
@@ -123,7 +129,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		DeletedFeed:   deletedFeed,
 	}
 
-	scheduler := sequential.NewScheduler("asdf", logger, h.HandleEvent)
+	scheduler := parallel.NewScheduler(21, "asdf", logger, h.HandleEvent)
 
 	c, err := client.NewClient(config, logger, scheduler)
 	if err != nil {
@@ -140,17 +146,17 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 	}()
 
 	go func() {
-		defer h.DB.Close();
+		defer h.DB.Close()
 
 		var retry = 0
 		var lastConnect = time.Now()
 		for {
 			if err := c.ConnectAndRead(ctx, &cursor); err != nil {
 				if time.Since(lastConnect) >= connectRetryReset {
-					retry = 0;
+					retry = 0
 					logger.Info("jetstream connection ended with error, will retry", err)
 				} else {
-					retry += 1;
+					retry += 1
 					if retry >= 7 {
 						log.Fatalf("jetstream: connection ended with error and no more retries. exiting", err)
 					} else {
@@ -225,7 +231,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 	if event.Commit.Operation == models.CommitOperationCreate {
 		parsed, err := syntax.ParseTID(event.Commit.RKey)
 		if err != nil {
-			fmt.Printf("failed to parse rkey %#v to TID, ignoring event.\n", err)
+			skippedPostCounter.WithLabelValues("TID failed to parse from rkey").Inc()
 			return nil
 		}
 		rkeyTime := parsed.Time()
@@ -233,13 +239,13 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 		eventTime := time.UnixMicro(event.TimeUS)
 		timeError := rkeyTime.Sub(eventTime).Abs()
 		if timeError > maxRkeyTimeError {
-			fmt.Printf("rkey TID %s differs too much from post time, by %.1fh. ignoring event.\n", rkeyTime, timeError.Hours())
+			skippedPostCounter.WithLabelValues("TID from rkey too far from event time").Inc()
 			return nil
 		}
 
 		since := time.Since(rkeyTime).Abs()
 		if since > maxRkeySince {
-			fmt.Printf("rkey %#v may not be current time, since it differs by %.1fh. ignoring event.\n", event.Commit.RKey, since.Hours())
+			skippedPostCounter.WithLabelValues("TID from rkey too far from now").Inc()
 			return nil
 		}
 	}
@@ -249,6 +255,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 	if event.Commit.Operation == models.CommitOperationCreate || event.Commit.Operation == models.CommitOperationUpdate {
 		var post apibsky.FeedPost
 		if err := json.Unmarshal(event.Commit.Record, &post); err != nil {
+			skippedPostCounter.WithLabelValues("unmarshalling record failed").Inc()
 			return fmt.Errorf("failed to unmarshal post: %#v", err)
 		}
 
@@ -260,6 +267,7 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 					// cache miss: ignore
 					return nil
 				} else {
+					skippedPostCounter.WithLabelValues("pebble existing post query failed").Inc()
 					return fmt.Errorf("failed to get existing event: %#v", err)
 				}
 			}
@@ -270,7 +278,11 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 			postTime = existing.TimeUS
 		}
 
-		return h.handlePersistPost(key, post, postTime)
+		if err := h.handlePersistPost(key, post, postTime); err != nil {
+			skippedPostCounter.WithLabelValues("persisting failed").Inc()
+			return err
+		}
+		return nil
 	} else if event.Commit.Operation == models.CommitOperationDelete {
 		post, err := h.TakeEvent(key)
 		if err != nil {
@@ -282,10 +294,16 @@ func (h *PostHandler) HandleEvent(ctx context.Context, event *models.Event) erro
 			}
 		}
 		if post != nil {
+			uncovered := UncoveredPost{
+				Post: post,
+				Did:  event.Did,
+				RKey: event.Commit.RKey,
+			}
+			liked := GetLikes(uncovered)
 			select {
-			case h.DeletedFeed <- *post:
+			case h.DeletedFeed <- liked:
 			default:
-				fmt.Printf("dropping deleted post because the channel is full")
+				fmt.Printf("dropping deleted post because the channel is full\n")
 			}
 			postAge.WithLabelValues(post.TargetName()).Observe(float64(post.AgeMs(time.Now())) / 1000)
 			postDeleteCounter.WithLabelValues(post.FirstLang(), post.TargetName(), "hit").Inc()
