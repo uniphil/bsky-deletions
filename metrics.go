@@ -46,3 +46,8 @@ var observersCount = promauto.NewGauge(prometheus.GaugeOpts{
 	Name: "post_deletion_observers",
 	Help: "Number of people observing the deleted posts",
 })
+
+var likeRequestFails = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "post_like_request_fails",
+	Help: "Failures to fetch likes for a post from atproto-link-aggregator",
+}, []string{"reason"})

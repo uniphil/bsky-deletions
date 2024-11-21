@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -37,22 +38,26 @@ func getLikes(did, rkey string) *uint32 {
 	aggregatorBase := "https://atproto-link-aggregator.fly.dev/likes"
 	query := url.Values{}
 	query.Set("uri", targetUri)
-	url := aggregatorBase + "?" + query.Encode()
 
-	res, err := reqClient.Get(url)
+	res, err := reqClient.Get(aggregatorBase + "?" + query.Encode())
 	if err != nil {
-		fmt.Printf("failed to do request: %w\n", err)
+		var urlErr url.Error
+		if errors.As(err, &urlErr.Err) && urlErr.Timeout() {
+			likeRequestFails.WithLabelValues("request timeout").Inc()
+		} else {
+			likeRequestFails.WithLabelValues("request error").Inc()
+		}
 		return nil
 	}
 	if res.StatusCode != 200 {
-		fmt.Printf("non-200 response: %w\n", err)
+		likeRequestFails.WithLabelValues(fmt.Sprintf("http %d", res.StatusCode)).Inc()
 		return nil
 	}
 
 	likesRes := LikesResult{}
 	err = json.NewDecoder(res.Body).Decode(&likesRes)
 	if err != nil {
-		fmt.Printf("failed to decode: %w\n", err)
+		likeRequestFails.WithLabelValues("json decode").Inc()
 		return nil
 	}
 
