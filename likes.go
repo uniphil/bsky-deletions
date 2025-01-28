@@ -36,9 +36,11 @@ func getLikes(did, rkey string) *uint32 {
 	targetUri := "at://" + did + "/app.bsky.feed.post/" + rkey // hack
 
 	aggregatorBase := "https://atproto-link-aggregator.fly.dev/likes"
+	altAggregatorBase := "https://redb-atproto-link-aggregator.fly.dev/likes"
 	query := url.Values{}
 	query.Set("uri", targetUri)
 
+	go reqClient.Get(altAggregatorBase + "?" + query.Encode())
 	res, err := reqClient.Get(aggregatorBase + "?" + query.Encode())
 	if err != nil {
 		var urlErr url.Error
