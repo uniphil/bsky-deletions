@@ -1,12 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 )
 
@@ -17,6 +16,10 @@ var reqClient = http.Client{
 type LikedPersistedPost struct {
 	Post  *PersistedPost
 	Likes *uint32
+}
+
+type LinksResult struct {
+	Total uint32 `json:"total"`
 }
 
 func GetLikes(uncovered UncoveredPost) LikedPersistedPost {
@@ -59,17 +62,11 @@ func getLikes(did, rkey string) *uint32 {
 		return nil
 	}
 
-	bytes, err := io.ReadAll(res.Body)
+	likesRes := LinksResult{}
+	err = json.NewDecoder(res.Body).Decode(&likesRes)
 	if err != nil {
-		likeRequestFails.WithLabelValues("body read").Inc()
-		return nil
-	}
-	count, err := strconv.ParseUint(string(bytes), 10, 32)
-	if err != nil {
-		likeRequestFails.WithLabelValues("int parse").Inc()
-		return nil
+		likeRequestFails.WithLabelValues("json decode").Inc()
 	}
 
-	count32 := uint32(count)
-	return &count32
+	return &likesRes.Total
 }
