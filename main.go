@@ -22,7 +22,7 @@ func main() {
 
 	jsUrl := os.Getenv("JETSTREAM_SUBSCRIBE")
 	if jsUrl == "" {
-		jsUrl = "wss://jetstream1.us-east.bsky.network/subscribe"
+		jsUrl = "wss://jetstream2.us-east.bsky.network/subscribe"
 	}
 
 	dbPath := os.Getenv("DB_PATH")

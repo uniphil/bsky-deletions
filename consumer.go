@@ -92,13 +92,6 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		log.Fatalf("failed to open db: %#v", err)
 	}
 
-	// todo: make a separate goroutine for backfill
-	var cursor int64
-	if env == "development" {
-		cursor = time.Now().Add(5 * -time.Minute).UnixMicro()
-	} else {
-		cursor = 0
-	}
 	iter, err := db.NewIter(nil)
 	if err != nil {
 		log.Fatalf("failed to get db iter: %#v", err)
@@ -109,10 +102,6 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 			log.Fatalf("failed to read latest entry: %#v", err)
 		}
 		log.Printf("latest ts: %d : %s\n", p.TimeUS, p.Text)
-
-		if p.TimeUS > cursor {
-			cursor = p.TimeUS
-		}
 	} else {
 		log.Printf("no last el")
 	}
@@ -151,7 +140,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 		var retry = 0
 		var lastConnect = time.Now()
 		for {
-			if err := c.ConnectAndRead(ctx, &cursor); err != nil {
+			if err := c.ConnectAndRead(ctx, nil); err != nil {
 				if time.Since(lastConnect) >= connectRetryReset {
 					retry = 0
 					logger.Info("jetstream connection ended with error, will retry", err)

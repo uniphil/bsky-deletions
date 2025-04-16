@@ -34,7 +34,7 @@ func getLikes(did, rkey string) *uint32 {
 	// format: at://did:plc:ezxfbsdjjylaoagv5bvz7sqb/app.bsky.feed.post/3lbb2ddbbn22c
 	targetUri := "at://" + did + "/app.bsky.feed.post/" + rkey // hack
 
-	aggregatorBase := "https://links.bsky.bad-example.com/links/count"
+	aggregatorBase := "https://constellation.microcosm.blue/links/count"
 	query := url.Values{}
 	query.Set("target", targetUri)
 	query.Set("collection", "app.bsky.feed.like")
