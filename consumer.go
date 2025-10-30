@@ -41,7 +41,7 @@ var ( // gross: duration can't be const
 	maxRkeyTimeError  time.Duration = MustParseDuration("1h")
 	maxRkeySince      time.Duration = MustParseDuration("25h") // allow backfill: jetstream max retention plus an hour
 	maxPostRetention  time.Duration = MustParseDuration("24h") * 2
-	connectRetryReset time.Duration = MustParseDuration("15m")
+	connectRetryReset time.Duration = MustParseDuration("1m")
 	connectRetryWait  time.Duration = MustParseDuration("3s")
 )
 
@@ -146,7 +146,7 @@ func Consume(ctx context.Context, env, jsUrl, dbPath string, logger *slog.Logger
 					logger.Info("jetstream connection ended with error, will retry", err)
 				} else {
 					retry += 1
-					if retry >= 7 {
+					if retry >= 14 {
 						log.Fatalf("jetstream: connection ended with error and no more retries. exiting", err)
 					} else {
 						logger.Info("jetstream connection ended with error", err, "retry:", retry)
